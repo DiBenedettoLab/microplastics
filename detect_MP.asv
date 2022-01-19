@@ -67,7 +67,7 @@ for i = 2500 - 1600 %i0:i0+nframes-1
         % remove based on area and proximity to free surface
         idx = stats.Area > A_thres1 & stats.Area < A_thres2 & stats.Centroid(:,2) < 1700;
         stats = stats(idx,:);
-        CC.PixelIdxList = CC.PixelIdxList(idx);
+        CC.PixelIdxList = CC.PixelIdxList{idx};
 
         if ~isempty(stats)
             % remove left and right false particles
@@ -87,7 +87,7 @@ for i = 2500 - 1600 %i0:i0+nframes-1
                 end
             end            
             stats = stats(logical(idx),:);
-            CC.PixelIdxList = CC.PixelIdxList(logical(idx));
+            CC.PixelIdxList = CC.PixelIdxList{logical(idx)};
 
             Np = height(stats);
             xp = stats.Centroid(:,1);
@@ -105,7 +105,7 @@ for i = 2500 - 1600 %i0:i0+nframes-1
         % write centroids xp, yp in pixels
         centers{i} = [xp,yp];
 %         angles{i} = [th_p,d_p];
-        B2 = zeros(size(A)); B2(CC.PixelIdxList{1}) = 1;
+        B2 = ones(size(A)); B2(CC.PixelI)
 
     % no particles in frame
     else
@@ -120,8 +120,8 @@ for i = 2500 - 1600 %i0:i0+nframes-1
 
     % plot
     if plot_on
-        figure(Bfig); clf; pcolor_img(A);%imadjust(A0,[200 255]/255,[150 255]/255)); 
-        hold on; plot(xp,yp,'ko','markersize',15)
+        figure(Bfig); clf; pcolor_img(B);%imadjust(A0,[200 255]/255,[150 255]/255)); 
+%         hold on; plot(xp,yp,'ko','markersize',15)
         set(gca,'XTick',[]); set(gca,'YTick',[]); 
         pause(1/100); 
         
