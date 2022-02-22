@@ -1,4 +1,4 @@
-% MP PTV preprocessing - disks
+% MP PTV preprocessing
 clear
 close all
 warning off
@@ -9,10 +9,16 @@ warning on
 % read inputs from run_parameters.ods
 % load('input.mat')
 plot_on = 1;
+load('tracks.mat')
+[~,tr_len_idx] = sort(tracklength0,'descend');
+tr_n = tr_len_idx(1);
+tr_idx = logical(tracks0(:,5) == tr_n | tracks0(:,5) == 5);
+plot_xy = [tracks0(tr_idx,1), tracks0(tr_idx,2)];
+xy_idx = tracks0(tr_idx,7);
 
 % -- read image files from directory structure -- %
 imgset = dir('*.tiff'); 
-img_it = length(imgset);
+img_nt = length(imgset);
 
 %% background subtraction
   
@@ -20,13 +26,15 @@ img_it = length(imgset);
 % taken in still water)
 bkgd = flipud(imread('../Basler_acA2040-90um__23703425__20220113_100116310_0863.tiff')); 
 img_ix = size(bkgd,2); img_iy = size(bkgd,1);
-N = 10;   % number of images to use
 bkgd = int8(bkgd);
 
 
 %% binarize (prelim processing)
-centers = cell(img_it,1); % particle centroids [xp, yp]
-% angles = cell(img_it,1); % particle orientation info [th_p, d_p]
+centers = cell(img_nt,1); % particle centroids [xp, yp]
+% angles = cell(img_nt,1); % particle orientation info [th_p, d_p]
+
+% plot_xy = zeros(0,2);
+% t_plot = zeros(0,1);
 
 if plot_on
     Bfig = figure; 
@@ -34,9 +42,12 @@ if plot_on
     set(gcf,'color','w');
 end
 
-i0 = 1; %1200-850; % 2500 - 1600; % 1940-1200; % 
-nframes = img_it; %150;
-for i = 2500 - 1600 %i0:i0+nframes-1
+% i0 = 2000 - 1600; % manual
+% i0 = 1200-850; % nurdles
+% i0 = 1940-1200; % rods
+i0 = 2500 - 1600; % disks
+nframes = 150; % img_nt; %
+for i = i0:i0+nframes-1
     A = flipud(imread(imgset(i).name));
     % figure; imshow(A);
     A0 = int8(A) - bkgd;
@@ -107,6 +118,15 @@ for i = 2500 - 1600 %i0:i0+nframes-1
 %         angles{i} = [th_p,d_p];
         B2 = zeros(size(A)); B2(CC.PixelIdxList{1}) = 1;
 
+%         if plot_on
+% %             idx = logical(xp>1300 & yp>1000 & i<820);
+% %             if any(idx)
+% %             plot_xy = [plot_xy; xp(idx), yp(idx)];
+%             plot_xy = [plot_xy; xp, yp];
+%             t_plot = [t_plot;i];
+% %             end
+%         end
+        
     % no particles in frame
     else
         centers{i} = zeros(0,2);
@@ -115,13 +135,16 @@ for i = 2500 - 1600 %i0:i0+nframes-1
 
     % print progress
     if ~mod(i-1,200)
-        fprintf([num2str(i-1) '/' num2str(img_it) '\n'])
+        fprintf([num2str(i-1) '/' num2str(img_nt) '\n'])
     end
 
     % plot
     if plot_on
-        figure(Bfig); clf; pcolor_img(A);%imadjust(A0,[200 255]/255,[150 255]/255)); 
-        hold on; plot(xp,yp,'ko','markersize',15)
+        figure(Bfig); clf; pcolor_img(imadjust(A0,[200 255]/255,[150 255]/255)); hold on
+        if i >= xy_idx(1) && i <= xy_idx(end)
+%             plot(plot_xy(:,1),plot_xy(:,2),'r.','markersize',4)
+            plot(plot_xy(xy_idx<=(i-2),1),plot_xy(xy_idx<=(i-2),2),'r.','markersize',4)
+        end
         set(gca,'XTick',[]); set(gca,'YTick',[]); 
         pause(1/100); 
         
@@ -137,25 +160,54 @@ for i = 2500 - 1600 %i0:i0+nframes-1
     %         close(vid);
     %     end
     
-    %     % write to gif
-    %     cdata = print('-RGBImage','-r600');
-    %     frame.cdata = cdata; frame.colormap = [];
-    %     im = frame2im(frame);
-    %     [imind,cm] = rgb2ind(im,256);
-    %     if i == i0
-    %         imwrite(imind,cm,'test_nurdles.gif','gif', 'Loopcount',inf,'DelayTime',0.1);
-    %     else
-    %         imwrite(imind,cm,'test_nurdles.gif','gif','WriteMode','append','DelayTime',0.1);
-    %     end
+        % write to gif
+        cdata = print('-RGBImage','-r450');
+        frame.cdata = cdata; frame.colormap = [];
+        im = frame2im(frame);
+        [imind,cm] = rgb2ind(im,256);
+        if i == i0
+            imwrite(imind,cm,'disks_tracked.gif','gif', 'Loopcount',inf,'DelayTime',0.1);
+        else
+            imwrite(imind,cm,'disks_tracked.gif','gif','WriteMode','append','DelayTime',0.1);
+        end
     end
    
 end
 
+% % plotting arrays
+% plot_xy_interp1 = interp1(t_plot,plot_xy(:,1),(i0:i)');
+% plot_xy_interp2 = interp1(t_plot,plot_xy(:,2),(i0:i)');
+% plot_xy = [plot_xy_interp1,plot_xy_interp2];
+
+
 % % save centers
 % save('centers.mat','centers'); %,'angles');
 
+%% track 
+% kernel = 0;
+% pxtom = 1;
+% fs = 1;
+% searchrad = 300;
+% [tracks0,tracklength0] = ptvProcess2(centers,kernel,pxtom,fs,searchrad); %,angles);
+% save('tracks.mat','tracks0','tracklength0','kernel')
+
+
 %%
 return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -170,8 +222,8 @@ return
 
 %% Get particle centroids 
 
-centers = cell(img_it,1); % particle centroids [xp, yp]
-angles = cell(img_it,1); % particle orientation info [th_p, d_p]
+centers = cell(img_nt,1); % particle centroids [xp, yp]
+angles = cell(img_nt,1); % particle orientation info [th_p, d_p]
 
 % intensity threshold for particle detection
 if MP_shape == 'd'
@@ -186,7 +238,7 @@ thres = part_thres;
 thres = repmat(thres,img_iy,1);
     
 %  LOOP OVER FRAMES
-for i = 1:img_it
+for i = 1:img_nt
     A = imread(imgset(i).name);
     Ap = A - bkgd;
 
@@ -258,7 +310,7 @@ for i = 1:img_it
 
     % print progress
     if ~mod(i-1,1000)
-        fprintf([num2str(i-1) '/' num2str(img_it) '\n'])
+        fprintf([num2str(i-1) '/' num2str(img_nt) '\n'])
     end
 
     if plot_on
@@ -289,9 +341,9 @@ for i = 1:img_it
 %             im = frame2im(frame);
 %             [imind,cm] = rgb2ind(im,256);
 %             if i == i0
-%                 imwrite(imind,cm,'rods.gif','gif', 'Loopcount',inf);
+%                 imwrite(imind,cm,'nurdles_tracked.gif','gif', 'Loopcount',inf);
 %             else
-%                 imwrite(imind,cm,'rods.gif','gif','WriteMode','append');
+%                 imwrite(imind,cm,'nurdles_tracked.gif','gif','WriteMode','append');
 %             end
 
 %             % write to avi
