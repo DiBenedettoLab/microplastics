@@ -7,24 +7,23 @@ addpath('C:\Users\ljbak\My Drive\MATLAB\fm-toolbox')
 warning on
 
 % read inputs from run_parameters.ods
-% load('input.mat')
 plot_on = 1;
-load('tracks.mat')
-[~,tr_len_idx] = sort(tracklength0,'descend');
-tr_n = tr_len_idx(1);
-tr_idx = logical(tracks0(:,5) == tr_n | tracks0(:,5) == 5);
-plot_xy = [tracks0(tr_idx,1), tracks0(tr_idx,2)];
-xy_idx = tracks0(tr_idx,7);
+% load('tracks.mat')
+% [~,tr_len_idx] = sort(tracklength0,'descend');
+% tr_n = tr_len_idx(1);
+% tr_idx = logical(tracks0(:,5) == tr_n | tracks0(:,5) == 5);
+% plot_xy = [tracks0(tr_idx,1), tracks0(tr_idx,2)];
+% xy_idx = tracks0(tr_idx,7);
 
 % -- read image files from directory structure -- %
-imgset = dir('*.tiff'); 
+imgset = dir('*.tif'); 
 img_nt = length(imgset);
 
 %% background subtraction
   
 % create background image (this should be done from a calibration image
 % taken in still water)
-bkgd = flipud(imread('../Basler_acA2040-90um__23703425__20220113_100116310_0863.tiff')); 
+bkgd = flipud(imread('../../CamA-bkgd2.tif')); 
 img_ix = size(bkgd,2); img_iy = size(bkgd,1);
 bkgd = int8(bkgd);
 
@@ -40,25 +39,23 @@ if plot_on
     Bfig = figure; 
     %set(Bfig,'Units', 'Pixels','Position',[2.6842   -0.0814    0.8080    0.7440]*1000);
     set(gcf,'color','w');
+    pause
 end
 
-% i0 = 2000 - 1600; % manual
-% i0 = 1200-850; % nurdles
-% i0 = 1940-1200; % rods
-i0 = 2500 - 1600; % disks
-nframes = 150; % img_nt; %
+i0 = 100;
+nframes = 150; % img_nt; % 
 for i = i0:i0+nframes-1
     A = flipud(imread(imgset(i).name));
-    % figure; imshow(A);
+%     figure; imshow(A);
     A0 = int8(A) - bkgd;
     A0 = uint8(A0 - min(A0(:)));
     A0 = 255 - A0;
 %     figure;pcolor_img(A0); keyboard
 
     %% adaptive binarization
-    ABsens = 0.59; % 'Sensitivity' (range [0, 1]). High value thresholds more pixels as foregrnd, at risk including some backgrnd pixels
+    ABsens = 0.58; % 'Sensitivity' (range [0, 1]). High value thresholds more pixels as foregrnd, at risk including some backgrnd pixels
     B = imbinarize(A0,'adaptive','Sensitivity',ABsens); % Adaptative binarization
-    
+
 %     % non-adaptive binarization
 %     thres = 235;
 %     B = logical(A0 > thres);
@@ -66,18 +63,20 @@ for i = i0:i0+nframes-1
     B = imerode(B,[0 1 0; 1 1 1; 0 1 0]); % remove tiny false positives
     B = imdilate(B,[0 1 0; 1 1 1; 0 1 0]);
    
+%     figure;pcolor_img(B)
 
     % detect particles
     % area
-%     A_thres1 = 100; A_thres2 = 1500; % nurdles
+    A_thres1 = 300; A_thres2 = 2500; % nurdles
 %     A_thres1 = 100; A_thres2 = 1800; % rods
-    A_thres1 = 200; A_thres2 = 2000; % disks
+%     A_thres1 = 200; A_thres2 = 2000; % disks
     CC = bwconncomp(B);
-    stats = regionprops('table',CC,A0,'Centroid','Area','MeanIntensity','PixelIdxList');
-    if ~isempty(stats)
+    stats1 = regionprops('table',CC,A0,'Centroid','Area','MeanIntensity','PixelIdxList');
+    xp = []; yp = [];
+    if ~isempty(stats1)
         % remove based on area and proximity to free surface
-        idx = stats.Area > A_thres1 & stats.Area < A_thres2 & stats.Centroid(:,2) < 1700;
-        stats = stats(idx,:);
+        idx = stats1.Area > A_thres1 & stats1.Area < A_thres2 & stats1.Centroid(:,2) < 1700;
+        stats = stats1(idx,:);
         CC.PixelIdxList = CC.PixelIdxList(idx);
 
         if ~isempty(stats)
@@ -105,6 +104,8 @@ for i = i0:i0+nframes-1
             yp = stats.Centroid(:,2); 
         else
             Np = 0;
+            xp = [];
+            yp = [];
         end
     else
         Np = 0;
@@ -140,11 +141,14 @@ for i = i0:i0+nframes-1
 
     % plot
     if plot_on
-        figure(Bfig); clf; pcolor_img(imadjust(A0,[200 255]/255,[150 255]/255)); hold on
-        if i >= xy_idx(1) && i <= xy_idx(end)
-%             plot(plot_xy(:,1),plot_xy(:,2),'r.','markersize',4)
-            plot(plot_xy(xy_idx<=(i-2),1),plot_xy(xy_idx<=(i-2),2),'r.','markersize',4)
+        figure(Bfig); clf; pcolor_img(A0); hold on; % imadjust(A0,[200 255]/255,[150 255]/255)); hold on
+        if ~isempty(xp)
+            plot(xp,yp,'r.','markersize',4');
         end
+%         if i >= xy_idx(1) && i <= xy_idx(end)
+% %             plot(plot_xy(:,1),plot_xy(:,2),'r.','markersize',4)
+%             plot(plot_xy(xy_idx<=(i-2),1),plot_xy(xy_idx<=(i-2),2),'r.','markersize',4)
+%         end
         set(gca,'XTick',[]); set(gca,'YTick',[]); 
         pause(1/100); 
         
@@ -160,16 +164,16 @@ for i = i0:i0+nframes-1
     %         close(vid);
     %     end
     
-        % write to gif
-        cdata = print('-RGBImage','-r450');
-        frame.cdata = cdata; frame.colormap = [];
-        im = frame2im(frame);
-        [imind,cm] = rgb2ind(im,256);
-        if i == i0
-            imwrite(imind,cm,'disks_tracked.gif','gif', 'Loopcount',inf,'DelayTime',0.1);
-        else
-            imwrite(imind,cm,'disks_tracked.gif','gif','WriteMode','append','DelayTime',0.1);
-        end
+%         % write to gif
+%         cdata = print('-RGBImage','-r450');
+%         frame.cdata = cdata; frame.colormap = [];
+%         im = frame2im(frame);
+%         [imind,cm] = rgb2ind(im,256);
+%         if i == i0
+%             imwrite(imind,cm,'disks_tracked.gif','gif', 'Loopcount',inf,'DelayTime',0.1);
+%         else
+%             imwrite(imind,cm,'disks_tracked.gif','gif','WriteMode','append','DelayTime',0.1);
+%         end
     end
    
 end
@@ -182,8 +186,8 @@ end
 
 % % save centers
 % save('centers.mat','centers'); %,'angles');
-
-%% track 
+% 
+% % track 
 % kernel = 0;
 % pxtom = 1;
 % fs = 1;
