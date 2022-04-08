@@ -141,7 +141,7 @@ for cam = 1:length(cams)
     end
 
     % undistortion and rectification function
-    rectify_quad = calibrate_camera(I,W);    
+    rectify_quad = calibrate_camera(I,W,2);    
     
     % confirm that calibration dots are mapped to the correct world coords
     if plot_on
