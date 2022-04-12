@@ -6,6 +6,8 @@ function rectify = calibrate_camera(I,W,order)
 % W: set of known calibration points in world coordinates (n x 2 vector) [m]
 % order: 1 for linear transformation (corrects for camera viewing angle but not lens distortion), 
 %        2 for quadratic transformation (corrects for camera viewing angle and lens distortion)
+%
+% references: Fujita et al 1998 (Water Res.), Creutin et al 2003 (J. Hydrol.)
 
 
 % find transformation coefficients

@@ -291,15 +291,7 @@ for cam = 1:length(cams)
         
 %             % write to gif
 %             fn_gif = sprintf('C:\\Users\\ljbak\\My Drive\\MP in OSBL\\imaging expts\\%s-%i-%s.gif',run_params.ParticleType{n},run_params.WindSpeed_m_s(n),cams(cam));
-%             cdata = print('-RGBImage','-r450');
-%             frame.cdata = cdata; frame.colormap = [];
-%             im = frame2im(frame);
-%             [imind,cm] = rgb2ind(im,256);
-%             if i == i0
-%                 imwrite(imind,cm,fn_gif,'gif', 'Loopcount',inf,'DelayTime',0.1);
-%             else
-%                 imwrite(imind,cm,fn_gif,'gif','WriteMode','append','DelayTime',0.1);
-%             end
+%             fig_to_gif(fn_gif,0.1)
         end
    
     end
