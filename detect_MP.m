@@ -1,16 +1,18 @@
 % MP particle detection and coordinate mapping
 
-% SETUP
+%% SETUP
 
 clear
 close all
+
+gdrive_path = 'G:\My Drive\';  % C:\Users\ljbak\My Drive\
+
 warning off
-addpath('H:\My Drive\MATLAB\fm-toolbox')
-addpath('C:\Users\ljbak\My Drive\MATLAB\fm-toolbox')
+addpath([gdrive_path 'MATLAB\fm-toolbox'])
 
 % load experiment params
-run_params = readtable('C:\Users\ljbak\My Drive\MP in OSBL\imaging expts\run_parameters_220315.ods');
-cal_params = readtable('C:\Users\ljbak\My Drive\MP in OSBL\imaging expts\cal_parameters_220315.ods');
+run_params = readtable([gdrive_path 'MP in OSBL\imaging expts\run_parameters_220315.xlsx']);
+cal_params = readtable([gdrive_path 'MP in OSBL\imaging expts\cal_parameters_220315.xlsx']);
 warning on
 
 % run number
@@ -18,11 +20,14 @@ n = 1;
 fprintf('\nwindspeed = %2.f m/s, particle type = %s\n', run_params.WindSpeed_m_s(n), ...
         run_params.ParticleType{n});
 
+nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.ParticleType{n},'r',1);
+
 % make plots or not
-plot_on = 1;
+plot_on1 = 0; % calibration and detection
+plot_on2 = 0; % merged views
 
 % save results or not
-save_on = 0;
+save_on = 1;
 
 % image parameters 
 cams = cell2mat(cal_params.Cam)';
@@ -38,8 +43,11 @@ ABsens = run_params.adBinSensitivity(n); % 'Sensitivity' (range [0, 1]). High va
 % particle detection parameters
 A_thres = [run_params.areaThreshold1_px(n), run_params.areaThreshold2_px(n)];
 
+% quiescent free surface water level
+z_freesurf_m = zeros(8,2);
+
 % set up figure
-if plot_on
+if plot_on1
     Bfig = figure; 
     set(Bfig,'Units', 'Pixels','Position',[0.0010    0.0410    1.5360    0.7488]*1000); %[-1.9190   -0.1750    1.9200    0.9648]*1000);
     set(gcf,'color','w');
@@ -49,8 +57,17 @@ end
 
 %% LOOP OVER CAMERAS
 
-centers = cell(img_nt,length(cams)); % particle centroids [xp, yp]
-angles = cell(img_nt,length(cams)); % particle orientation info [th_p, d_p]
+tic
+
+% get array of coords of relevant points in px for each cam: endpoints of maj/min axes for disks,
+% endpoints of minor axis for rods, centroid for nurdles/wax pellets
+centers1 = cell(img_nt,length(cams));  % particle centroids [xp, yp] (distorted)
+angles1 = cell(img_nt,length(cams));   % particle orientation info [th_p, d_p] (distorted)
+
+keypts = cell(img_nt,length(cams),5);  % particle key points (endpoints of major and minor axes and centroid 
+                                       % {xp_maj1 yp_maj1}, {xp_maj2 yp_maj2}, {xp_min1 yp_min1}, {xp_min2 yp_min2}, {xp, yp})
+
+rectify_quad = cell(length(cams),1);      % image rectification function handles for each camera view
 
 for cam = 1:length(cams)   
     
@@ -82,13 +99,13 @@ for cam = 1:length(cams)
 
 
 
-    % CALIBRATION: GET MAPPING FUNCTION FROM IMAGE TO WORLD COORDS
+    %% CALIBRATION: GET MAPPING FUNCTION FROM IMAGE TO WORLD COORDS
     
     cal = double(cal) - bkgd; % subtract background
     cal = uint8(cal - min(cal(:)));  % shift intensities so that all are positive 
     cal = 255 - cal;  % invert image
     
-    %% binarize
+    % binarize
     B = imbinarize(cal,'adaptive','Sensitivity',cal_params.calAdBinSens(cam)); % Adaptative binarization   
     B = imerode(B,[0 1 0; 1 1 1; 0 1 0]); B = imerode(B,[0 1 0; 1 1 1; 0 1 0]); % remove false positive pixels by eroding and dilating twice
     B = imdilate(B,[0 1 0; 1 1 1; 0 1 0]); B = imdilate(B,[0 1 0; 1 1 1; 0 1 0]); 
@@ -98,7 +115,7 @@ for cam = 1:length(cams)
 
     % mask top and edges (dots not part of the n_rows_cal x n_cols_cal grid)
     B = B.*logical(mask);
-    if plot_on
+    if plot_on1
         figure; subplot(161); pcolor_img(cal); title('bkgd sub and inverted')
         subplot(162); pcolor_img(B); title('masked and binarized')
     end
@@ -109,7 +126,7 @@ for cam = 1:length(cams)
     idx = cal_dots.Area > cal_params.calAreaThres1_px(cam) & cal_dots.Area < cal_params.calAreaThres2_px(cam);
 %     idx = cal_dots.Area > 300 & cal_dots.Area < 5000;
     cal_dots = cal_dots(idx,:);    
-    if plot_on
+    if plot_on1
         subplot(163); pcolor_img(cal); hold on
         viscircles(cal_dots.Centroid,cal_dots.EquivDiameter/2); title('dots detected')
     end
@@ -129,37 +146,37 @@ for cam = 1:length(cams)
     
     I = zeros(n_rows_cal*n_cols_cal,2); 
     for j = 1:n_cols_cal    
-        if plot_on; line([bin_lim(j) bin_lim(j)],[0 img_iy]); end  % plot bin limits
+        if plot_on1; line([bin_lim(j) bin_lim(j)],[0 img_iy]); end  % plot bin limits
         cal_dots0 = cal_dots(cal_dots.Centroid(:,1) > bin_lim(j) & cal_dots.Centroid(:,1) < bin_lim(j+1),:);  % dots in a vertical bin
         [~,sort_idx] = sort(cal_dots0.Centroid(:,2),'ascend');  % sort by y-coord
         I(n_rows_cal*(j-1)+1 : n_rows_cal*j,:) = cal_dots0.Centroid(sort_idx,:);  % image points
     end
-    if plot_on  % plot detected image points
+    if plot_on1  % plot detected image points
         point_colors = jet(size(I,1));
         subplot(164); scatter(I(:,1),I(:,2),15,point_colors,"filled"); grid on; axis tight equal; title('detected points')
         subplot(165); scatter(W(:,1),W(:,2),15,point_colors,"filled"); grid on; axis tight equal; title('known coords')
     end
 
     % undistortion and rectification function
-    rectify_quad = calibrate_camera(I,W,2);    
+    rectify_quad{cam} = calibrate_camera(I,W,2);    
     
     % confirm that calibration dots are mapped to the correct world coords
-    if plot_on
-        imagePoints2 = rectify_quad(I); 
+    if plot_on1
+        imagePoints2 = rectify_quad{cam}(I); 
         subplot(166); scatter(imagePoints2(:,1),imagePoints2(:,2),15,point_colors,"filled"); grid on; axis tight equal; title('corrected points')
     end
-    
+
+    % quiescent free surface coordinates
+    z_freesurf_m(2*(cam-1)+1:2*cam,:) = rectify_quad{cam}([cal_params.xSurfStill1_px(cam), cal_params.ySurfStill1_px(cam); ...
+        cal_params.xSurfStill2_px(cam), cal_params.ySurfStill2_px(cam)]);
+
 
 
     %% LOOP OVER FRAMES
-    i0 = 200; 
-    nframes = 100; % img_nt; % 
-    for i = i0:i0+nframes-1  
-        if cam_left
-            A = (imread([dir_name imgset(i).name]))'; % load image frame
-        else
-            A = rot90(imread([dir_name imgset(i).name]),2)'; 
-        end
+    i0 = 1; 
+    nframes = img_nt; % 
+    for i = i0:i0+nframes-1 
+        A = cam_imread([dir_name imgset(i).name], cam_left);
         A0 = imcrop(A,img_crop_rect);  % crop to correct for camera shift
         A0 = double(A0) - bkgd; % subtract background
         A0 = uint8(A0 - min(A0(:)));  % shift intensities so that all are positive 
@@ -172,20 +189,29 @@ for cam = 1:length(cams)
         B = imdilate(B,[0 1 0; 1 1 1; 0 1 0]);
         B = imdilate(B,[0 1 0; 1 1 1; 0 1 0]);
 
-        % free surface (develop this more)
-        z_freesurf = inf;  % deepest extent of wave troughs [px]
 
         % FIND PARTICLES
-        CC = bwconncomp(B);
-        S1 = regionprops('table',CC,A0,'Centroid','Area','BoundingBox','MajorAxisLength','MinorAxisLength','Orientation','PixelIdxList');
+        S1 = regionprops('table',B,A0,'Centroid','Area','BoundingBox','MajorAxisLength','MinorAxisLength','Orientation','PixelList');
+        
+        % free surface 
+        [~,idx] = max(S1.Area);
+        S_freesurf = S1(idx,:);
+        z_freesurf_px = zeros(img_ix,1);
+        for j = 1:img_ix
+            freesurf_col_j = S_freesurf.PixelList{1}(:,1)==j;
+            if any(freesurf_col_j)
+                z_freesurf_px(j) = min(S_freesurf.PixelList{1}(freesurf_col_j,2));
+            else
+                z_freesurf_px(j) = inf;
+            end
+        end
         
         xp = []; yp = [];
         if ~isempty(S1)
             % remove based on area and proximity to free surface
-            idx = S1.Area > A_thres(1) & S1.Area < A_thres(2) & S1.Centroid(:,2) < z_freesurf; % can also be a function of stats1.Centroid(:,1)
+            idx = S1.Area > A_thres(1) & S1.Area < A_thres(2) & S1.Centroid(:,2) < z_freesurf_px(round(S1.Centroid(:,1))); 
             S = S1(idx,:);
-            CC.PixelIdxList = CC.PixelIdxList(idx);
-    
+
             if ~isempty(S)
                 % remove doubles (false shadows when the particle that shows up in addition to its shadow 
                 % if particle is near the back wall) 
@@ -193,37 +219,33 @@ for cam = 1:length(cams)
                 dx_double_l = dx_double*~cam_left; % if particle is to the left of the shadow/right camera (px)
                 dx_double_r = -dx_double*cam_left; % if particle is to the right of the shadow/left camera (px)
                 dz_double = 20; % max vertical distance between doubles (px)
+                
                 Np = height(S);
                 xp = S.Centroid(:,1);
                 yp = S.Centroid(:,2);
-                double_idx = ones(Np,1); 
-                for j = 1:Np
-                    distx = (xp(j) - xp);
-                    disty = (yp(j) - yp);
-                    for k = 1:Np
-                        if j ~= k && distx(k) < dx_double_l && distx(k) > dx_double_r && disty(k) > -dz_double && disty(k) < dz_double 
-                            double_idx(k) = 0; % flag doubles
-                        end
-                    end
-                end            
-                S = S(logical(double_idx),:);
-                CC.PixelIdxList = CC.PixelIdxList(logical(double_idx));
-    
+                distx = repmat(xp,1,Np) - repmat(xp',Np,1);
+                disty = repmat(yp,1,Np) - repmat(yp',Np,1);
+                [~,double_idx] = find(distx ~= 0 & disty ~= 0 & distx < dx_double_l & distx > dx_double_r & disty > -dz_double & disty < dz_double);
+                if ~isempty(double_idx)
+                    S(double_idx,:) = [];
+                end
+                
                 % particle centroids and orientations
                 Np = height(S);
                 xp = S.Centroid(:,1);
                 yp = S.Centroid(:,2); 
 
-                if strncmp(run_params.ParticleType{n},'d',1)
+                if strncmp(run_params.ParticleType{n},'r',1)        % rods
+                    len1 = sqrt(S.BoundingBox(:,3).^2 + S.BoundingBox(:,4).^2);  % length
+                    len2 = S.Area./len1; % thickness
+                    len1 = len1 - 0.25*len2;
+                    th_p = -S.Orientation(:)*pi/180; % in-plane orientation, radians (need (-S.Orientation) because image is flipped up-down)
+                    d_p = len1; % apparent major axis length [px]
+                else                                                % disks and spheres
                     len1 = S.MajorAxisLength;
                     len2 = S.MinorAxisLength;
                     th_p = -S.Orientation(:)*pi/180; % in-plane orientation, radians (need (-S.Orientation) because image is flipped up-down)
-                    d_p = len2; % apparent major axis length [px]
-                elseif strncmp(run_params.ParticleType{n},'r',1)
-                    len = sqrt(S.BoundingBox(:,3).^2 + S.BoundingBox(:,4).^2);
-                    len = len - 0.25*S.MinorAxisLength;
-                    th_p = -S.Orientation(:)*pi/180; % in-plane orientation, radians (need (-S.Orientation) because image is flipped up-down)
-                    d_p = len; % apparent major axis length [px]
+                    d_p = len2; % apparent minor axis length [px]
                 end
             else
                 Np = 0;
@@ -232,17 +254,24 @@ for cam = 1:length(cams)
             Np = 0;
         end
     
-        % accumulate centroids xp, yp in pixels and angles
+        % accumulate centroids [xp, yp], angles, and keypoints (px)
         if Np > 0
-            centers{i,cam} = [xp,yp];
-            if strncmp(run_params.ParticleType{n},'r',1) || strncmp(run_params.ParticleType{n},'d',1)
-                angles{i,cam} = [th_p,d_p];
+            centers1{i,cam} = [xp,yp];
+            if nonsphere
+                angles1{i,cam} = [th_p,d_p];
             end
-%             B2 = zeros(size(A)); B2(CC.PixelIdxList{1}) = 1;
+            keypts{i,cam,1} = [xp - len1/2.*cos(th_p), yp - len1/2.*sin(th_p)];
+            keypts{i,cam,2} = [xp + len1/2.*cos(th_p), yp + len1/2.*sin(th_p)];
+            keypts{i,cam,3} = [xp - len2/2.*cos(th_p-pi/2), yp - len2/2.*sin(th_p-pi/2)]; 
+            keypts{i,cam,4} = [xp + len2/2.*cos(th_p-pi/2), yp + len2/2.*sin(th_p-pi/2)];
+            keypts{i,cam,5} = [xp, yp];
         else
-            centers{i,cam} = zeros(0,2);
-            if strncmp(run_params.ParticleType{n},'r',1) || strncmp(run_params.ParticleType{n},'d',1)
-                angles{i,cam} = zeros(0,2);
+            centers1{i,cam} = zeros(0,2);
+            if nonsphere
+                angles1{i,cam} = zeros(0,2);
+            end
+            for j = 1:5
+                keypts{i,cam,j} = zeros(0,2);
             end
         end
     
@@ -252,9 +281,9 @@ for cam = 1:length(cams)
         end
     
         % MAKE PLOTS
-        if plot_on
-            figure(Bfig); clf;
-            subplot(121); pcolor_img(B); % imadjust(A0,[200 255]/255,[150 255]/255)); hold on
+        if plot_on1
+            figure(Bfig); 
+            subplot(121); pcolor_img(B); 
             subplot(122); pcolor_img(A0); hold on
             if ~isempty(xp)
                 % plot centroid
@@ -262,19 +291,19 @@ for cam = 1:length(cams)
 
                 % plot major and minor axes
                 if strncmp(run_params.ParticleType{n},'d',1)  
-                    line([centers{i,cam}(:,1) - len1/2.*cos(th_p), centers{i,cam}(:,1) + len1/2.*cos(th_p)]', ...
-                        [centers{i,cam}(:,2) - len1/2.*sin(th_p),centers{i,cam}(:,2) + len1/2.*sin(th_p)]', ...
+                    line([xp - len1/2.*cos(th_p), xp + len1/2.*cos(th_p)]', ...
+                        [yp - len1/2.*sin(th_p), yp + len1/2.*sin(th_p)]', ...
                         'color','r','linewidth',0.75,'linestyle','-');
-                    line([centers{i,cam}(:,1) - len2/2.*cos(th_p-pi/2), centers{i,cam}(:,1) + len2/2.*cos(th_p-pi/2)]', ...
-                        [centers{i,cam}(:,2) - len2/2.*sin(th_p-pi/2),centers{i,cam}(:,2) + len2/2.*sin(th_p-pi/2)]', ...
+                    line([xp - len2/2.*cos(th_p-pi/2), xp + len2/2.*cos(th_p-pi/2)]', ...
+                        [yp - len2/2.*sin(th_p-pi/2), yp + len2/2.*sin(th_p-pi/2)]', ...
                         'color','y','linewidth',0.75,'linestyle','-'); 
                 elseif strncmp(run_params.ParticleType{n},'r',1)
-                    line([centers{i,cam}(:,1) - len/2.*cos(th_p), centers{i,cam}(:,1) + len/2.*cos(th_p)]', ...
-                        [centers{i,cam}(:,2) - len/2.*sin(th_p),centers{i,cam}(:,2) + len/2.*sin(th_p)]', ...
+                    line([xp - len1/2.*cos(th_p), xp + len1/2.*cos(th_p)]', ...
+                        [yp - len1/2.*sin(th_p), yp + len1/2.*sin(th_p)]', ...
                         'color','r','linewidth',0.75,'linestyle','-'); 
                 end
-            end
-%             set(gca,'XTick',[]); set(gca,'YTick',[]); 
+            end 
+            hold off;
             pause(1/100); 
             
 %             % write to avi
@@ -299,22 +328,154 @@ for cam = 1:length(cams)
 end
 
 
+
 %% MERGE CAMERA VIEWS
 
-% get array of coords of relevant points in px for each cam: endpoints of maj/min axes for disks,
-% endpoints of minor axis for rods, centroid for nurdles/wax
+if plot_on2
+%     Mfig1 = figure; set(Mfig1,'position',[0.0010    0.0410    1.5360    0.7488]*1000);
+%     axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
+%     Mfig2 = figure; set(Mfig2,'position',[-1.9190   -0.1750    1.9200    0.9648]*1000);
+%     axis equal; axis([-.5 .5 -.45 .05]); grid on
+    Mfig = figure; set(Mfig,'position',[1.1983    0.1397    1.3400    1.1000]*1000);
+    subplot(211); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
+    subplot(212); axis equal; axis([-.5 .5 -.45 .05]); grid on
 
-% apply calibration: convert point coords in px into meters across all
-% images
+    dir_name = cell(length(cams),1);
+    imgset = cell(length(cams),1);
+    for cam = 1:4
+        dir_name{cam} = sprintf('run%i\\Cam%s\\', run_params.Run(n),cams(cam));
+        imgset{cam} = dir([dir_name{cam} '*.tif']);
+    end
+end
 
-% convert points back into centroids and angles
+% quiescent water surface level
+z_freesurf_m_mean = mean(z_freesurf_m(:,2));
+
+% apply calibration: convert point coords in px into meters across all images
+keypts_rect = cell(img_nt,5);
+for i = i0:i0+nframes-1  
+    for j = 1:5
+        keypts_rect{i,j} = [rectify_quad{1}(keypts{i,1,j}); rectify_quad{2}(keypts{i,2,j}); ...
+            rectify_quad{3}(keypts{i,3,j}); rectify_quad{4}(keypts{i,4,j})];
+        keypts_rect{i,j}(:,2) = keypts_rect{i,j}(:,2) - z_freesurf_m_mean;
+    end
+end
+
+% convert rectified keypoints back into centroids and angles
+centers = cell(img_nt,1);  % particle centroids [xp, yp]
+angles = cell(img_nt,1);   % particle orientation info [th_p, d_p]
+errchk = cell(img_nt,1);   % error check quantity
+
+overlap_thres = (2e-3)^2; % m (squared)
+
+for i = i0:i0+nframes-1  
+    
+    % rectified keypoints
+    maj1 = keypts_rect{i,1};
+    maj2 = keypts_rect{i,2};
+    min1 = keypts_rect{i,3};
+    min2 = keypts_rect{i,4};
+    xpyp = keypts_rect{i,5};
+
+    if strncmp(run_params.ParticleType{n},'d',1)
+        cen = [ mean([maj1(:,1), maj2(:,1), min1(:,1), min2(:,1)],2), ...
+             mean([maj1(:,2), maj2(:,2), min1(:,2), min2(:,2)],2) ];
+        th_p_rect = atan2( (maj2(:,2) - maj1(:,2))/2, (maj2(:,1) - maj1(:,1))/2 );
+        d_p_rect = sqrt( (min2(:,1) - min1(:,1)).^2 + (min2(:,2) - min1(:,2)).^2 );
+        ec = sqrt( (maj2(:,1) - maj1(:,1)).^2 + (maj2(:,2) - maj1(:,2)).^2 );
+    
+    elseif strncmp(run_params.ParticleType{n},'r',1)
+        cen = [ mean([maj1(:,1), maj2(:,1)],2), mean([maj1(:,2), maj2(:,2)],2) ];
+        th_p_rect = atan2( (maj2(:,2) - maj1(:,2))/2, (maj2(:,1) - maj1(:,1))/2 );
+        d_p_rect = sqrt( (maj2(:,1) - maj1(:,1)).^2 + (maj2(:,2) - maj1(:,2)).^2 );
+        ec = sqrt( (min2(:,1) - min1(:,1)).^2 + (min2(:,2) - min1(:,2)).^2 );
+        
+    else
+        cen = xpyp;
+        ec = mean([ sqrt( (maj2(:,1) - maj1(:,1)).^2 + (maj2(:,2) - maj1(:,2)).^2 ), ...
+            sqrt( (min2(:,1) - min1(:,1)).^2 + (min2(:,2) - min1(:,2)).^2 ) ], 2);         
+    end
+
+    % accumulate particle data
+    centers{i} = cen;
+    errchk{i} = ec;
+    if nonsphere
+        angles{i} = [th_p_rect, d_p_rect];
+    end
+
+    % combine particles that appear in more than one camera view
+    Np = size(cen,1);
+    distx = repmat(cen(:,1),1,Np) - repmat(cen(:,1)',Np,1);
+    disty = repmat(cen(:,2),1,Np) - repmat(cen(:,2)',Np,1);
+    distp = distx.^2 + disty.^2;
+    [idx1,idx2] = find(distp > 0 & distp < overlap_thres);
+
+    % remove the smaller/shorter particle
+    if strncmp(run_params.ParticleType{n},'r',1)
+        L_discrim = d_p_rect; % rod length
+    else
+        L_discrim = errchk{i}; % disk major axis length/sphere diameter
+    end
+    idx_remove = idx1( L_discrim(idx1) < L_discrim(idx2) );
+    centers{i}(idx_remove,:) = [];
+    errchk{i}(idx_remove) = [];
+    if nonsphere
+        angles{i}(idx_remove,:) = [];
+    end
+
+    % plot image array and rectified particles
+    if plot_on2
+        maj1(idx_remove,:) = [];
+        maj2(idx_remove,:) = [];
+        min1(idx_remove,:) = [];
+        min2(idx_remove,:) = [];
+
+        A = zeros(img_iy, 4*img_ix);
+        for cam = 1:4
+            cam_left = cam <= 2;
+            A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_imread([dir_name{cam} imgset{cam}(i).name], cam_left);
+        end
+
+%         figure(Mfig1); 
+        subplot(211); cla; imagesc(flipud(A),[0 80]); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
+%         figure(Mfig2); 
+        subplot(212); cla;
+        if ~isempty(maj1)
+            % plot axes 
+            line([maj1(:,1), maj2(:,1)]',[maj1(:,2), maj2(:,2)]', ...
+                'color','r','linewidth',0.75,'linestyle','-'); hold on
+            line([min1(:,1), min2(:,1)]',[min1(:,2), min2(:,2)]', ...
+                'color','b','linewidth',0.75,'linestyle','-'); hold off
+        end 
+        pause(.1); 
+%         fig_to_gif('C:\Users\ljbak\My Drive\MP in OSBL\imaging expts\figs\d5-16-combined.gif',0.1)
+    end
+
+end
+
 
 
 %% SAVE CENTERS AND ANGLES
 if save_on
-    if strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.ParticleType{n},'r',1)
-        save('centers.mat','centers','angles');
+    if nonsphere
+        save(sprintf('run%i\\centers.mat', run_params.Run(n)),'centers','angles','errchk');
     else
-        save('centers.mat','centers');
+        save(sprintf('run%i\\centers.mat', run_params.Run(n)),'centers','errchk');
     end
+end
+
+toc
+
+
+%% TRACK PARTICLES
+fs = run_params.imagingFreq_Hz(n);  % imaging freq (Hz)
+searchrad = 10e-3; % search radius (m)
+if nonsphere
+    [tracks0,tracklength0] = get_particle_tracks(centers,fs,searchrad,angles,errchk);
+else
+    [tracks0,tracklength0] = get_particle_tracks(centers,fs,searchrad,errchk);
+end
+
+if save_on
+    save(sprintf('run%i\\tracks.mat', run_params.Run(n)),'tracks0','tracklength0')
 end
