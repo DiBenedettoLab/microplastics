@@ -9,15 +9,16 @@ function detect_MP(n)
 
 gdrive_path = 'G:\My Drive\';  % C:\Users\ljbak\My Drive\
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
-expt_string = '220315';  % expt set
-% n = 2;  % run number
+expt_string = 'run220315';
 
 % load experiment params
 warning off
-run_params = readtable(sprintf('%sMP in OSBL\\imaging expts\\run%s\\run_parameters_%s.xlsx',gdrive_path,expt_string,expt_string));
-cal_params = readtable(sprintf('%sMP in OSBL\\imaging expts\\run%s\\cal_parameters_%s.xlsx',gdrive_path,expt_string,expt_string));
+run_params = readtable(sprintf('%sMP in OSBL\\imaging expts\\run_parameters_%s.xlsx',gdrive_path,expt_string));
+cal_params = readtable(sprintf('%sMP in OSBL\\imaging expts\\cal_parameters_%s.xlsx',gdrive_path,expt_string));
 warning on
 
+% run number
+% n = 2;
 fprintf('\nwindspeed = %2.f m/s, particle type = %s\n', run_params.WindSpeed_m_s(n), ...
         run_params.ParticleType{n});
 
@@ -62,8 +63,8 @@ tic
 
 % get array of coords of relevant points in px for each cam: endpoints of maj/min axes for disks,
 % endpoints of minor axis for rods, centroid for nurdles/wax pellets
-% centers1 = cell(img_nt,length(cams));  % particle centroids [xp, yp] (distorted)
-% angles1 = cell(img_nt,length(cams));   % particle orientation info [th_p, d_p] (distorted)
+centers1 = cell(img_nt,length(cams));  % particle centroids [xp, yp] (distorted)
+angles1 = cell(img_nt,length(cams));   % particle orientation info [th_p, d_p] (distorted)
 
 keypts1 = cell(img_nt,length(cams));  % particle key points (endpoints of major and minor axes and centroid 
                                        % {xp_maj1 yp_maj1}, {xp_maj2 yp_maj2}, {xp_min1 yp_min1}, {xp_min2 yp_min2}, {xp, yp})
@@ -180,7 +181,7 @@ for cam = 1:length(cams)
 
     %% LOOP OVER FRAMES
     i0 = 1; 
-    nframes = img_nt;  
+    nframes = img_nt; % 
     parfor i = i0:i0+nframes-1 
         A = cam_imread([dir_name imgset(i).name], cam_left);
         A0 = imcrop(A,img_crop_rect);  % crop to correct for camera shift
@@ -262,20 +263,20 @@ for cam = 1:length(cams)
     
         % accumulate centroids [xp, yp], angles, and keypoints (px)
         if Np > 0
-%             centers1{i,cam} = [xp,yp];
-%             if nonsphere
-%                 angles1{i,cam} = [th_p,d_p];
-%             end
+            centers1{i,cam} = [xp,yp];
+            if nonsphere
+                angles1{i,cam} = [th_p,d_p];
+            end
             keypts1{i,cam} = [xp - len1/2.*cos(th_p), yp - len1/2.*sin(th_p)];
             keypts2{i,cam} = [xp + len1/2.*cos(th_p), yp + len1/2.*sin(th_p)];
             keypts3{i,cam} = [xp - len2/2.*cos(th_p-pi/2), yp - len2/2.*sin(th_p-pi/2)]; 
             keypts4{i,cam} = [xp + len2/2.*cos(th_p-pi/2), yp + len2/2.*sin(th_p-pi/2)];
             keypts5{i,cam} = [xp, yp];
         else
-%             centers1{i,cam} = zeros(0,2);
-%             if nonsphere
-%                 angles1{i,cam} = zeros(0,2);
-%             end
+            centers1{i,cam} = zeros(0,2);
+            if nonsphere
+                angles1{i,cam} = zeros(0,2);
+            end
             keypts1{i,cam} = zeros(0,2);
             keypts2{i,cam} = zeros(0,2);
             keypts3{i,cam} = zeros(0,2); 
@@ -466,9 +467,9 @@ end
 %% SAVE CENTERS AND ANGLES
 if save_on
     if nonsphere
-        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','angles','errchk');
+        save(sprintf('%sMP in OSBL\\imaging expts\\run220315\\outputs\\centers_run%02d.mat', gdrive_path, run_params.Run(n)),'centers','angles','errchk');
     else
-        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','errchk');
+        save(sprintf('%sMP in OSBL\\imaging expts\\run220315\\outputs\\centers_run%02d.mat', gdrive_path, run_params.Run(n)),'centers','errchk');
     end
 end
 
@@ -488,5 +489,5 @@ end
 toc
 
 if save_on
-    save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\tracks_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'tracks0','tracklength0')
+    save(sprintf('%sMP in OSBL\\imaging expts\\%s\\outputs\\tracks_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'tracks0','tracklength0')
 end
