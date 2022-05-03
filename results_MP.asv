@@ -384,6 +384,7 @@ for i = 1:length(n)
 end
 
 
+%% vertical excursions
 
 
 
@@ -401,7 +402,7 @@ return
 %% Lagrangian particle vel/accel autocorrelation
 
 % 3 for u, 4 for w, 8 for a_x, 9 for a_z
-q_idx = [4];%,8,9];
+q_idx = [3,4];%,8,9];
 r_up = cell(length(n),1); 
 t_lags = cell(length(n),1);
 c = parula(Nbins_wide);
@@ -420,6 +421,7 @@ for k = 1:length(n)
         l1 = zeros(Nbins_wide,1);
         figure; 
         Nmin = 100;
+        t_lags_long = (0:(2*length(t_lags{k})))/fs;
         for j = 1:Nbins_wide 
             idx = N_pts(j,:)>Nmin;
             l1(j) = plot(t_lags{k}(idx)/t_plus, r_up{k}(j,idx,i),'.','markersize',10,'color',c(j,:)); hold on
