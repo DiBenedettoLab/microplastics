@@ -51,8 +51,8 @@ y_bins_wide_cen = mean([y_bins_wide_edg(2:end); y_bins_wide_edg(1:end-1)],1);
 kdom = 1/.6;  % scaling (dominant wavenumber)
 t_plus = 1;
 
-Nt = cell(size(n));
-for i = 1:length(n); Nt{i} = max(smtracks{i}(:,7)); end
+Nt = zeros(size(n));
+for i = 1:length(n); Nt(i) = max(smtracks{i}(:,7)); end
 
 % plotting vars
 ebar_gray = [.4 .4 .4]; 
@@ -103,26 +103,26 @@ scaleflag = 0; % code not compatible with scaleflag=1!
 for i = 1:length(n)
     % mean concentration
     [~, zprof{i}, C{i}] = condition_vars(ones(size(smtracks{i}(:,2))),smtracks{i}(:,2),Nbins,scaleflag,binedg); 
-    C{i} = C{i}/(ROI_area*diff(zprof{i}(1:2))*Nt{i});
+    C{i} = C{i}/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
     zprof_k{i} = zprof{i}*kdom;
     
     % uncertainty
     C_tr = zeros(max(smtracks{i}(:,7)),Nbins);
-%     for j = 1:T_indep:max(smtracks{i}(:,7))
-%         idx = smtracks{i}(:,7) >= j & smtracks{i}(:,7) < j+T_indep;
-%         zp_j = smtracks{i}(idx,2);
-%         if ~isempty(zp_j)
-%             [~,~,C_tr(j,:)] = condition_vars(ones(size(zp_j)),zp_j,Nbins,scaleflag,binedg);
-%         end
-%     end
+    for j = 1:T_indep:Nt(i)
+        idx = smtracks{i}(:,7) >= j & smtracks{i}(:,7) < j+T_indep;
+        zp_j = smtracks{i}(idx,2);
+        if ~isempty(zp_j)
+            [~,~,C_tr(j,:)] = condition_vars(ones(size(zp_j)),zp_j,Nbins,scaleflag,binedg);
+        end
+    end
     C_tr = C_tr/(ROI_area*diff(zprof{i}(1:2))*T_indep);
-    w_C{i} = error_mean(var(C_tr,1)'*length(smtracks{i}(:,2)),C{i});
+    w_C{i} = error_mean(var(C_tr,1)',Nt(i));
 
     % scaling by uniform concentration
     if scaleflag
-        normval = length(smtracks{i}(:,2))*real(diff(logspace(log10(binedg(1)),log10(binedg(2)),Nbins+1)'))/diff(binedg)/(ROI_area*diff(zprof{i}(1:2))*Nt{i});
+        normval = length(smtracks{i}(:,2))*real(diff(logspace(log10(binedg(1)),log10(binedg(2)),Nbins+1)'))/diff(binedg)/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
     else
-        normval = length(smtracks{i}(:,2))/Nbins/(ROI_area*diff(zprof{i}(1:2))*Nt{i});
+        normval = length(smtracks{i}(:,2))/Nbins/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
     end
     Cnorm{i} = C{i}./normval;
     w_C{i} = w_C{i}./normval;
@@ -164,11 +164,8 @@ for i = 1:length(n)
         flux_up(k) = sum(cross_up_idx);
         flux_down(k) = sum(cross_down_idx);
     end
-    fluxz{i} = (flux_up - flux_down)/(ROI_area*Nt{i}/fs);
+    fluxz{i} = (flux_up - flux_down)/(ROI_area*Nt(i)/fs);
 end
-
-figure; l = compare_plots(fluxz,zprof_k,mk_col,mk,mk_sz,ls);
-xlabel('$\Phi$ [m$^{-2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
 
 % concentration gradient and advective flux
 dCdz = cell(size(n));
@@ -182,19 +179,24 @@ end
 W_rise = run_params.riseVel_m_s;
 Az = cell(size(n));
 for i = 1:length(n)
-    Az{i} = (WC{i} - fluxz{i})./dCdz{i}/nu;
+    Az{i} = (WC{i} - fluxz{i})./dCdz{i};
 end
-A0 = 1.5*2e-2*0.4*5e-2;
+A0 = 1.5*[1 2 3]*1e-2*0.4*5e-2;
 
-figure; l = compare_plots(WC,zprof_k,mk_col,mk,mk_sz,ls);
-xlabel('$W_b\langle C\rangle$'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
-figure; l = compare_plots(dCdz,zprof_k,mk_col,mk,mk_sz,ls);
-xlabel('$d\langle C\rangle dz$'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
+% % plot flux balance components
+% figure; l = compare_plots(WC,zprof_k,mk_col,mk,mk_sz,ls);
+% xlabel('$W_b\langle C\rangle$'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
+% figure; l = compare_plots(dCdz,zprof_k,mk_col,mk,mk_sz,ls);
+% xlabel('$d\langle C\rangle dz$'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
+% figure; l = compare_plots(fluxz,zprof_k,mk_col,mk,mk_sz,ls);
+% xlabel('$\Phi$ [m$^{-2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
 
-
+% plot diffusivity
 figure; l = compare_plots(Az,zprof_k,mk_col,mk,mk_sz,ls);
-hold on; line([A0 A0]/nu,binedg*kdom,'color','k','linestyle','--')
-xlabel('$A(z)$ [m$^{2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
+hold on; line([A0(1) A0(1)],binedg*kdom,'color','k','linestyle','--'); 
+line([A0(2) A0(2)],binedg*kdom,'color','k','linestyle','--'); 
+line([A0(3) A0(3)],binedg*kdom,'color','k','linestyle','--'); 
+xlim([-.01 .02]); xlabel('$A(z)$ [m$^{2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([4 4])
 
 
 
