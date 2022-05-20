@@ -4,7 +4,7 @@
 close all
 clear
 
-gdrive_path = 'H:\My Drive\';  %  'C:\Users\ljbak\My Drive\';  %  'G:\My Drive\';  % 
+gdrive_path = 'C:\Users\ljbak\My Drive\';  %  'H:\My Drive\';  %  'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220315';  % expt set
 n = 1:6; %  7:12; %  runs to include
@@ -48,8 +48,6 @@ prof_ylim = [-.5 0];
 Nbins_wide = 4;
 y_bins_wide_edg = real(logspace(log10(binedg(1)),log10(binedg(2)),Nbins_wide+1)); % wide bin edges for autocorrelations and PDFs
 y_bins_wide_cen = mean([y_bins_wide_edg(2:end); y_bins_wide_edg(1:end-1)],1);
-kdom = 1/.6;  % scaling (dominant wavenumber)
-t_plus = 1;
 
 Nt = zeros(size(n));
 for i = 1:length(n); Nt(i) = max(smtracks{i}(:,7)); end
@@ -73,6 +71,18 @@ w_ROI = 0.91;
 l_ROI = 0.98;
 ROI_area = w_ROI*l_ROI; % horizontal area of ROI, channel width * ROI streamwise length
 nu = 1e-6;
+ut = 0.03;  % friction velocity
+Hs = 0.05;  % significant wave height (eventually read from particle_flow_props spreadsheet?)
+kdom = 1/.6;  % scaling (dominant wavenumber)
+t_plus = 1;
+AR = ones(size(n));
+for i = 1:length(n)
+    if strncmp(run_params.ParticleType{i},'d',1)
+        AR(i) = 1.6e-3/run_params.Dp_m(i);
+    elseif strncmp(run_params.ParticleType{i},'r',1)
+        AR(i) = run_params.Dp_m(i)/1.3e-3;
+    end
+end
 
 
 %% preview tracks
@@ -82,11 +92,14 @@ xlabel('track length [frames]'); ylabel('count')
 
 figure;
 track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
-c = jet(length(track_ids));
+c = jet(100); %jet(length(track_ids));
+velmags = smtracks{1}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
+velmags = velmags - min(velmags);
+velmags = round(velmags*99/max(velmags)) + 1;
 for i = 1:length(track_ids)
     idx = smtracks{1}(:,5)==track_ids(i);
-    c_idx = i; % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
-    plot(smtracks{1}(idx,1),smtracks{1}(idx,2),'.','color',c(c_idx,:));
+    c_idx = velmags(idx); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
+    scatter(smtracks{1}(idx,1),smtracks{1}(idx,2),4,c(c_idx,:),'filled');
     hold on
 end
 axis equal; axis([-.5 .5 -.45 .05]);
@@ -132,18 +145,48 @@ end
 figure;
 l = compare_plots(Cnorm, zprof_k, mk_col, mk, mk_sz, ls, ...
     w_C, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-
-% theoretical profile
-Lm = .1;
-z_exp = linspace(prof_ylim(1),prof_ylim(2),50);
-C_exp = Cnorm{1}(end)*exp(z_exp/Lm);
-hold on; plot(C_exp,z_exp*kdom,'k--','linewidth',1)
-
 % set(gca,'yscale','log'); 
 axis([0 5 prof_ylim*kdom])
-xlabel('$C/C_0$'); ylabel('$zk_w$'); 
-legend(l,lstr,'location','se')
+xlabel('$C/C_0$'); ylabel('$zk_w$'); legend(l,lstr,'location','se')
 goodplot([5 4])
+
+%% theoretical profile
+Lm_fit = zeros(size(n));
+C0 = zeros(size(n));
+for i = 1:length(n)
+    P = polyfit(zprof{i},log(Cnorm{i}),1);
+    Lm_fit(i) = 1/P(1);
+    C0(i) = exp(P(2));
+end
+
+A0 = 1.5*ut*0.4*Hs;
+Lm_theor = A0./run_params.riseVel_m_s(n)';
+
+% i = 1;
+% z_exp = linspace(zprof{i}(1),zprof{i}(end),50);
+% C_exp = C0(i)*exp(z_exp/Lm_fit(i));
+% hold on; plot(C_exp,z_exp*kdom,'k--','linewidth',1)
+
+
+%% collapse conc profile
+C_C0 = Cnorm;
+w_C_C0 = w_C;
+z_Lm = zprof;
+for i = 1:length(n)
+    C_C0{i} = Cnorm{i}/C0(i);
+    w_C_C0{i} = w_C{i}/C0(i);
+    z_Lm{i} = zprof{i}/Lm_theor(i); %Lm_fit(i);
+end
+figure; l = compare_plots(C_C0, z_Lm, mk_col, mk, mk_sz, ls, ...
+    w_C_C0, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+hold on; plot(exp(-8:.1:0),-8:.1:0,'k--')
+xlabel('$C/C_0$'); ylabel('$z/L_m$'); legend(l,lstr,'location','se')
+goodplot([5 4])
+
+fprintf('\nLm = %1.3f, %1.3f, %1.3f, %1.3f, %1.3f, %1.3f m\n',Lm_fit)
+fprintf('C0 = %2.1f, %2.1f, %2.1f, %2.1f, %2.1f, %2.1f\n',C0)
+
+
 
 
 % % check if developed 
@@ -437,7 +480,33 @@ pdf_ls = {'-' '-' '-' '-' '-' '-'};
 %     end
 % end
 
+%% depth & orientation = irradiation
 
+% radiation as a function of depth 
+Lz = -.1; % light decay lengthscale [m]
+rad_level = @(z) exp(z/Lz);   % (CHECK THIS)
+
+Anorm_max = cell(size(n));  % particle planar area normal to vertical normalized by MAX AREA
+Anorm_sph = cell(size(n));  % particle planar area normal to vertical normalized by EQUIVALENT SPHERE AREA
+irrad = cell(size(n));  % irradiation on particle normalized by its nominal planar area and surface light level
+
+for i = 1:length(n)
+    Anorm_max{i} = ones(length(smtracks{i}),1);
+    Anorm_sph{i} = ones(length(smtracks{i}),1);
+    if nonsphere(i) 
+        if strncmp(run_params.ParticleType,'d',1)
+            Anorm_max{i} = abs(smangles{i}(:,2));  
+            Anorm_sph{i} = Anorm_max{i}/(3/2*AR(i))^(2/3);
+        else
+            Anorm_max{i} = sqrt(1 - (smangles{i}(:,2).^2));
+            Anorm_sph{i} = Anorm_max{i}/(pi*(9/16*1/AR(i))^(1/3));
+        end
+    end
+    irrad_max{i} = Anorm_max{i}.*rad_level(smtracks{i}(:,2));
+    irrad_sph{i} = Anorm_sph{i}.*rad_level(smtracks{i}(:,2));
+    disp(mean(irrad_max{i},'omitnan'))
+%     disp(mean(irrad_sph{i},'omitnan'))
+end
 
 
 
@@ -445,11 +514,83 @@ pdf_ls = {'-' '-' '-' '-' '-' '-'};
 return
 
 %% mean, wave, and turbulent velocity
+%% all tracks at once
+smtracks_turb = smtracks;
+for i = 1:length(n)
+%     [E, f] = get_spectrum(smtracks{i}(:,4), fs);
+%     figure; loglog(f,E); hold on
+%     xlabel('f [Hz]'); ylabel('E_w(f) [m^2/s^2/Hz]')
+    
+    Yx = fft(smtracks{i}(:,3));
+    Yz = fft(smtracks{i}(:,4));
+    L = length(Yx);
+    f = (1:L)-ceil(L/2);
+    f = f*fs/L;
+    f = fftshift(f);
+    % figure;plot(f,Yx);ylim([-200 200])
+    f_co = 2.5;
+    Yx(abs(f)<f_co) = 0;%Yx(abs(f)<f_co) - real(Yx(abs(f)<f_co));
+    Yz(abs(f)<f_co) = 0;%Yz(abs(f)<f_co) - real(Yz(abs(f)<f_co));
+    u_filtered = real(ifft(Yx));
+    w_filtered = real(ifft(Yz));
+    
+%     [E2, f] = get_spectrum(w_filtered, fs);
+%     loglog(f,E2); ylim([min(E) max(E)])
+%     loglog(f(f>3),1e-5*f(f>3).^(-5/3),'-k')
+%     legend('original','filtered','location','sw')
+    
+%     figure;
+%     track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
+%     c = jet(100); %jet(length(track_ids));
+%     velmags = u_filtered; %sqrt(u_filtered.^2 + w_filtered.^2);
+%     velmags = velmags - min(velmags);
+%     velmags = round(velmags*99/max(velmags)) + 1;
+%     for j = 1:length(track_ids)
+%         idx = smtracks{i}(:,5)==track_ids(j);
+%         c_idx = velmags(idx); 
+%         scatter(smtracks{i}(idx,1),smtracks{i}(idx,2),4,c(c_idx,:),'filled');
+%         hold on
+%     end
+%     axis equal; axis([-.5 .5 -.45 .05]);
+%     xlabel('x [m]'); ylabel('y [m]')
+    
+%     ufluct_tmp = smtracks{i}(:,4)-mean(smtracks{i}(:,4));
+%     t_snip = 1000:1500;
+%     figure; plot(t_snip/fs,ufluct_tmp(t_snip),'.-',t_snip/fs,w_filtered(t_snip),'.-'); 
+%     xlabel('t [s]'); ylabel('w_p [m/s]'); legend('w_p - \langlew_p\rangle','w_{p,filtered}')
+    
+    smtracks_turb{i}(:,3) = u_filtered;
+    smtracks_turb{i}(:,4) = w_filtered;
+end
 
-% for i = 1:length(smtracks)
-    idx = smtracks{1}(:,5)==1;
-    [E_u, f] = get_spectrum(smtracks{1}(:,3), fs);
-    figure; loglog(f,E_u);
+%% track-by-track
+smtracks_turb = smtracks;
+for i = 1:length(n)
+    for j = 1:length(smtracklength)
+        idx = smtracks{i}(:,5) == j;
+        
+        Yx = fft(smtracks{i}(idx,3));
+        Yz = fft(smtracks{i}(idx,4));
+        L = length(Yx);
+        f = (1:L)-ceil(L/2);
+        f = f*fs/L;
+        f = fftshift(f);
+%         figure;plot(f,Yx);ylim([-200 200])
+        f_co = 3;
+        Yx(abs(f)<f_co) = 0;%Yx(abs(f)<f_co) - real(Yx(abs(f)<f_co));
+        Yz(abs(f)<f_co) = 0;%Yz(abs(f)<f_co) - real(Yz(abs(f)<f_co));
+        u_filtered = real(ifft(Yx));
+        w_filtered = real(ifft(Yz));
+        
+        smtracks_turb{i}(idx,3) = u_filtered;
+        smtracks_turb{i}(idx,4) = w_filtered;
+    end
+end
+
+
+
+
+
 
 
 %% Lagrangian particle vel/accel autocorrelation
@@ -467,7 +608,7 @@ for k = 1:length(n)
     
     for i = 1:length(q_idx)
         q1 = q_idx(i); q2 = q1;     
-        [r_up{k}(:,:,i), N_pts, t_lags{k}] = lagrang_xcorr(smtracks{k}, q1, q2, y_bins_wide_edg, 0, Tmax, fs, 0);
+        [r_up{k}(:,:,i), N_pts, t_lags{k}] = lagrang_xcorr(smtracks_turb{k}, q1, q2, y_bins_wide_edg, 0, Tmax, fs, 0);
     
         % plot
         lgnd = cell(Nbins_wide,1); 
@@ -484,7 +625,7 @@ for k = 1:length(n)
         line(get(gca,'XLim'),[0 0],'color',[.5 .5 .5])
 %         axis([0 80 0 1]); set(gca,'XTick',0:20:100)
         if q1 == 3
-            legend(l1,lgnd,'location','southwest'); 
+            legend(l1,lgnd,'location','northeast'); 
         end
     
         goodplot([4 3.5])
