@@ -1,4 +1,4 @@
-function detect_MP(n)
+function detect_MP_tif(n)
 % input n = run number
 % MP particle detection and coordinate mapping
 
@@ -7,10 +7,10 @@ function detect_MP(n)
 % clear
 % close all
 
-gdrive_path = 'G:\My Drive\';  % C:\Users\ljbak\My Drive\
+% n = 1;  % run number
+gdrive_path = 'H:\My Drive\'; % 'G:\My Drive\';  % 'C:\Users\ljbak\My Drive\';  %  
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
-expt_string = '220315';  % expt set
-% n = 2;  % run number
+expt_string = '220613';  % expt set
 
 % load experiment params
 warning off
@@ -24,17 +24,19 @@ fprintf('\nwindspeed = %2.f m/s, particle type = %s\n', run_params.WindSpeed_m_s
 nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.ParticleType{n},'r',1);
 
 % make plots or not
-plot_on1 = 0; % calibration and detection
-plot_on2 = 0; % merged views
+plot_on1 = 0; % calibration
+plot_on2 = 1; % detection
+plot_on3 = 1; % merged views
 
 % save results or not
-save_on = 1;
+save_on = 0;
 
 % image parameters 
 cams = cell2mat(cal_params.Cam)';
-dir_name = sprintf('run%i\\Cam%s\\', run_params.Run(n),cams(1));
-imgset = dir([dir_name '*.tif']); 
+dir_name = sprintf('run%i\\', run_params.Run(n));
+imgset = dir(sprintf('%sCam%s*',dir_name,cams(1))); 
 img_nt = length(imgset);
+
 img_shifts = floor([run_params.camA_offset_x(n), run_params.camA_offset_y(n); run_params.camC_offset_x(n), run_params.camC_offset_y(n); 
     run_params.camB_offset_x(n), run_params.camB_offset_y(n); run_params.camD_offset_x(n), run_params.camD_offset_y(n)]./2);
 
@@ -43,6 +45,8 @@ ABsens = run_params.adBinSensitivity(n); % 'Sensitivity' (range [0, 1]). High va
 
 % particle detection parameters
 A_thres = [run_params.areaThreshold1_px(n), run_params.areaThreshold2_px(n)];
+maj_thres = [run_params.majAxThres1(n), run_params.majAxThres2(n)];
+min_thres = [run_params.minAxThres1(n), run_params.minAxThres2(n)];
 
 % quiescent free surface water level
 z_freesurf_m = zeros(8,2);
@@ -50,7 +54,7 @@ z_freesurf_m = zeros(8,2);
 % set up figure
 if plot_on1
     Bfig = figure; 
-    set(Bfig,'Units', 'Pixels','Position',[0.0010    0.0410    1.5360    0.7488]*1000); %[-1.9190   -0.1750    1.9200    0.9648]*1000);
+    set(Bfig,'Units', 'Pixels','Position',[1.0830    0.0503    1.3667    0.9113]*1000); 
     set(gcf,'color','w');
 end
 
@@ -72,6 +76,8 @@ keypts3 = cell(img_nt,length(cams));
 keypts4 = cell(img_nt,length(cams));
 keypts5 = cell(img_nt,length(cams));
 
+z_freesurf_inst = cell(img_nt,length(cams));
+
 rectify_quad = cell(length(cams),1);      % image rectification function handles for each camera view
 
 for cam = 1:length(cams)   
@@ -79,8 +85,7 @@ for cam = 1:length(cams)
     cam_left = cam <= 2; % 'true' for the left two cameras, 'false' for right two cameras
     
     % read image files from directory structure 
-    dir_name = sprintf('run%i\\Cam%s\\', run_params.Run(n),cams(cam));
-    imgset = dir([dir_name '*.tif']); 
+    imgset = dir(sprintf('%sCam%s*',dir_name,cams(cam))); 
 
     % load background and calibration images
     bkgd = cam_imread(sprintf('Cam%s-bkgd.tif',cams(cam)), cam_left);
@@ -179,10 +184,13 @@ for cam = 1:length(cams)
 
 
     %% LOOP OVER FRAMES
-    i0 = 1; 
-    nframes = img_nt;  
-    parfor i = i0:i0+nframes-1 
+    i0 = 9;
+    nframes = 1;%img_nt;  
+    
+    for i = i0:i0+nframes-1 % parfor
+
         A = cam_imread([dir_name imgset(i).name], cam_left);
+
         A0 = imcrop(A,img_crop_rect);  % crop to correct for camera shift
         A0 = double(A0) - bkgd; % subtract background
         A0 = uint8(A0 - min(A0(:)));  % shift intensities so that all are positive 
@@ -211,11 +219,13 @@ for cam = 1:length(cams)
                 z_freesurf_px(j) = inf;
             end
         end
+        z_freesurf_inst{i,cam} = [(1:length(z_freesurf_px))', z_freesurf_px];
         
         xp = []; yp = [];
         if ~isempty(S1)
             % remove based on area and proximity to free surface
-            idx = S1.Area > A_thres(1) & S1.Area < A_thres(2) & S1.Centroid(:,2) < z_freesurf_px(round(S1.Centroid(:,1))); 
+            idx = S1.Area > A_thres(1) & S1.Area < A_thres(2) & S1.Centroid(:,2) < z_freesurf_px(round(S1.Centroid(:,1))) & ...
+                S1.MajorAxisLength > maj_thres(1) & S1.MajorAxisLength < maj_thres(2) & S1.MinorAxisLength > min_thres(1) & S1.MinorAxisLength < min_thres(2); 
             S = S1(idx,:);
 
             if ~isempty(S)
@@ -289,9 +299,9 @@ for cam = 1:length(cams)
         end
     
         % MAKE PLOTS
-        if plot_on1
-            subplot(121); pcolor_img(B); 
-            subplot(122); pcolor_img(A0); hold on
+        if plot_on2
+            subplot(121); cla; pcolor_img(B); 
+            subplot(122); cla; pcolor_img(A0); hold on
             if ~isempty(xp)
                 % plot centroid
                 plot(xp,yp,'r.','markersize',4'); 
@@ -339,7 +349,7 @@ keypts = cat(3,keypts1,keypts2,keypts3,keypts4,keypts5);
 
 %% MERGE CAMERA VIEWS
 
-if plot_on2
+if plot_on3
 %     Mfig1 = figure; set(Mfig1,'position',[0.0010    0.0410    1.5360    0.7488]*1000);
 %     axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
 %     Mfig2 = figure; set(Mfig2,'position',[-1.9190   -0.1750    1.9200    0.9648]*1000);
@@ -348,15 +358,12 @@ if plot_on2
     subplot(211); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
     subplot(212); axis equal; axis([-.5 .5 -.45 .05]); grid on
 
-    dir_name = cell(length(cams),1);
     imgset = cell(length(cams),1);
     for cam = 1:4
-        dir_name{cam} = sprintf('run%i\\Cam%s\\', run_params.Run(n),cams(cam));
-        imgset{cam} = dir([dir_name{cam} '*.tif']);
+        imgset{cam} = dir(sprintf('%sCam%s*',dir_name,cams(cam))); 
     end
 end
 
-% quiescent water surface level
 z_freesurf_m_mean = mean(z_freesurf_m(:,2));
 
 % apply calibration: convert point coords in px into meters across all images
@@ -367,6 +374,14 @@ for i = i0:i0+nframes-1
             rectify_quad{3}(keypts{i,3,j}); rectify_quad{4}(keypts{i,4,j})];
         keypts_rect{i,j}(:,2) = keypts_rect{i,j}(:,2) - z_freesurf_m_mean;
     end
+end
+
+% convert freesurf coords
+z_freesurf_inst_rect = cell(img_nt,1);
+for i = i0:i0+nframes-1  
+    z_freesurf_inst_rect{i} = [rectify_quad{1}(z_freesurf_inst{i,1}); rectify_quad{2}(z_freesurf_inst{i,2}); ...
+        rectify_quad{3}(z_freesurf_inst{i,3}); rectify_quad{4}(z_freesurf_inst{i,4})];
+    z_freesurf_inst_rect{i}(:,2) = z_freesurf_inst_rect{i}(:,2) - z_freesurf_m_mean;
 end
 
 % convert rectified keypoints back into centroids and angles
@@ -432,16 +447,20 @@ for i = i0:i0+nframes-1
     end
 
     % plot image array and rectified particles
-    if plot_on2
-        maj1(idx_remove,:) = [];
-        maj2(idx_remove,:) = [];
-        min1(idx_remove,:) = [];
-        min2(idx_remove,:) = [];
+    if plot_on3
+%         maj1(idx_remove,:) = [];
+%         maj2(idx_remove,:) = [];
+%         min1(idx_remove,:) = [];
+%         min2(idx_remove,:) = [];
 
         A = zeros(img_iy, 4*img_ix);
         for cam = 1:4
             cam_left = cam <= 2;
-            A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_imread([dir_name{cam} imgset{cam}(i).name], cam_left);
+            if strcmp('fmt','tif')
+                A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_imread([dir_name imgset{cam}(i).name], cam_left);
+            else
+                A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_aviread(vid{cam,file_id(i)}, i-start_idx(file_id(i))+1, cam_left);
+            end
         end
 
 %         figure(Mfig1); 
@@ -466,9 +485,9 @@ end
 %% SAVE CENTERS AND ANGLES
 if save_on
     if nonsphere
-        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','angles','errchk');
+        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','angles','errchk','z_freesurf_inst_rect');
     else
-        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','errchk');
+        save(sprintf('%sMP in OSBL\\imaging expts\\run%s\\outputs\\centers_run%02d.mat', gdrive_path, expt_string, run_params.Run(n)),'centers','errchk','z_freesurf_inst_rect');
     end
 end
 

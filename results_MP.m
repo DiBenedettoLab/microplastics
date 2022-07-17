@@ -6,8 +6,8 @@ clear
 
 gdrive_path = 'C:\Users\ljbak\My Drive\';  %  'H:\My Drive\';  %  'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
-expt_string = '220315';  % expt set
-n = 1:6; %  7:12; %  runs to include
+expt_string = '220613';  % expt set
+n = [1:6]; %  runs to include
 
 % load experiment params
 warning off
@@ -41,7 +41,7 @@ error_mean = @(q_var,q_N) 1.645*sqrt(q_var./(q_N/T_indep));
 error_var = @(q_var,q_N) q_var.*(1-(q_N/T_indep-1)./chi2inv(0.05,q_N/T_indep-1));
 
 % binning vars
-Nbins = 12;   % number of bins in profiles
+Nbins = 50;%12;   % number of bins in profiles
 binedg = [-.45 -.05];
 prof_ylim = [-.5 0];
 
@@ -104,6 +104,32 @@ for i = 1:length(track_ids)
 end
 axis equal; axis([-.5 .5 -.45 .05]);
 xlabel('x [m]'); ylabel('y [m]')
+hold off
+
+%% tracks by frame number
+% % load('centers_run01_fs.mat','z_freesurf_inst_rect');
+% figure;
+% set(gcf,'position',[0.0010    0.0410    1.5360    0.7488]*1000)
+% track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
+% c = jet(100); %jet(length(track_ids));
+% velmags = smtracks{1}(:,4); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2); % 
+% velmags = velmags - min(velmags);
+% velmags = round(velmags*99/max(velmags)) + 1;
+% for i = 1:1000%max(smtracks{1}(:,7))
+%     idx1 = smtracks{1}(:,7)==i;
+%     idx2 = smtracks{1}(:,7)<i & smtracks{1}(:,7)>(i-30);
+%     c_idx1 = velmags(idx1); %round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));  %   
+%     c_idx2 = velmags(idx2); 
+%     scatter(smtracks{1}(idx1,1),smtracks{1}(idx1,2),12,c(c_idx1,:),'filled'); hold on
+%     scatter(smtracks{1}(idx2,1),smtracks{1}(idx2,2),4,c(c_idx2,:),'filled'); 
+% %     plot(z_freesurf_inst_rect{i}(:,1),z_freesurf_inst_rect{i}(:,2),'k-'); 
+%     hold off
+%     axis equal; axis([-.5 .5 -.45 .05]);
+%     xlabel('x [m]'); ylabel('y [m]')
+% 
+%     pause(1/10)
+%     fig_to_gif('tracks-n16.gif',0.1)
+% end
 
 
 %% concentration
@@ -391,16 +417,19 @@ l = compare_plots(uu, zprof_k, mk_col, mk, mk_sz, ls, ...
     w_uu, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 xlabel('$\langle u_p''u_p''\rangle$ [m$^2$/s$^2$]'); ylabel('$zk_{dom}$')
 legend(l,lstr,'location','se')
+xlim([0 10]*1e-3)
 
 subplot(132); 
 compare_plots(ww, zprof_k, mk_col, mk, mk_sz, ls, ...
     w_ww, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 xlabel('$\langle w_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
+xlim([0 10]*1e-3)
 
 subplot(133); 
 compare_plots(uw, zprof_k, mk_col, mk, mk_sz, ls, ...
     w_uw, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 xlabel('$\langle u_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
+xlim([-5 5]*1e-3)
 goodplot([6 4])
 
 
@@ -456,29 +485,29 @@ pdf_mk = {'.' '.' '.' '.' '.' '.'};
 pdf_mk_sz = 10*ones(Nbins_wide,1);
 pdf_ls = {'-' '-' '-' '-' '-' '-'};
 
-% for i = 1:length(n)
-%     if nonsphere(i)
-%         figure;
-%         subplot(141);
-%         l = compare_plots(mat2cell(px_rng{i},Npdf,ones(1,Nbins_wide)), ...
-%             mat2cell(px_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
-%         xlabel('$|p_x|$'); ylabel('PDF')
-%         subplot(142);
-%         compare_plots(mat2cell(py_rng{i},Npdf,ones(1,Nbins_wide)), ...
-%             mat2cell(py_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
-%         xlabel('$|p_y|$')
-%         subplot(143);
-%         compare_plots(mat2cell(pz_rng{i},Npdf,ones(1,Nbins_wide)), ...
-%             mat2cell(pz_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
-%         xlabel('$|p_z|$')
-%         subplot(144);
-%         compare_plots(mat2cell(pzs_rng{i},Npdfs,ones(1,Nbins_wide)), ...
-%             mat2cell(pzs_pdf{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
-%         xlabel('$p_z$')
-%         sgtitle(run_params.ParticleType{i})
-%         goodplot([6 4])
-%     end
-% end
+for i = 1:length(n)
+    if nonsphere(i)
+        figure;
+        subplot(141);
+        l = compare_plots(mat2cell(px_rng{i},Npdf,ones(1,Nbins_wide)), ...
+            mat2cell(px_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+        xlabel('$|p_x|$'); ylabel('PDF')
+        subplot(142);
+        compare_plots(mat2cell(py_rng{i},Npdf,ones(1,Nbins_wide)), ...
+            mat2cell(py_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+        xlabel('$|p_y|$')
+        subplot(143);
+        compare_plots(mat2cell(pz_rng{i},Npdf,ones(1,Nbins_wide)), ...
+            mat2cell(pz_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+        xlabel('$|p_z|$')
+        subplot(144);
+        compare_plots(mat2cell(pzs_rng{i},Npdfs,ones(1,Nbins_wide)), ...
+            mat2cell(pzs_pdf{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+        xlabel('$p_z$')
+        sgtitle(run_params.ParticleType{i})
+        goodplot([6 4])
+    end
+end
 
 %% depth & orientation = irradiation
 
@@ -566,7 +595,7 @@ end
 %% track-by-track
 smtracks_turb = smtracks;
 for i = 1:length(n)
-    for j = 1:length(smtracklength)
+    for j = 1:max(smtracks{i}(:,5))
         idx = smtracks{i}(:,5) == j;
         
         Yx = fft(smtracks{i}(idx,3));
@@ -586,9 +615,52 @@ for i = 1:length(n)
         smtracks_turb{i}(idx,4) = w_filtered;
     end
 end
+%%
+i = 1;
+figure;
+track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
+c = jet(100); %jet(length(track_ids));
+velmags = smtracks_turb{i}(:,3); %sqrt(u_filtered.^2 + w_filtered.^2);
+velmags = velmags - min(velmags);
+velmags = round(velmags*99/max(velmags)) + 1;
+for j = 1:length(track_ids)
+    idx = smtracks_turb{i}(:,5)==track_ids(j);
+    c_idx = velmags(idx); 
+    scatter(smtracks_turb{i}(idx,1),smtracks_turb{i}(idx,2),4,c(c_idx,:),'filled');
+    hold on
+end
+axis equal; axis([-.5 .5 -.45 .05]);
+xlabel('x [m]'); ylabel('y [m]')
 
 
+%% low-pass filter
+kernel = 0;
+smtracks_wave = cell(size(n));
+smtracklength_wave = cell(size(n));
+for i = 1:length(n)
+    [smtracks_wave{i}, smtracklength_wave{i}] = smooth_tracks(smtracks{i},kernel,1/fs);
+end
 
+% preview low-passed tracks
+% track lengths
+figure; histogram(smtracklength{1},100)
+xlabel('track length [frames]'); ylabel('count')
+
+i = 1;
+figure;
+track_ids = round(linspace(2,length(smtracklength_wave{i}),100));  % 1:30; %
+c = jet(100); %jet(length(track_ids));
+velmags = smtracks_wave{i}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
+velmags = velmags - min(velmags);
+velmags = round(velmags*99/max(velmags)) + 1;
+for j = 1:length(track_ids)
+    idx = smtracks_wave{i}(:,5)==track_ids(j);
+    c_idx = velmags(idx); % round(smtracklength(track_ids(j))/max(smtracklength(track_ids))*length(track_ids));
+    scatter(smtracks_wave{i}(idx,1),smtracks_wave{i}(idx,2),4,c(c_idx,:),'filled');
+    hold on
+end
+axis equal; axis([-.5 .5 -.45 .05]);
+xlabel('x [m]'); ylabel('y [m]')
 
 
 
@@ -636,4 +708,6 @@ for k = 1:length(n)
         end
     end
 end
+
+
 
