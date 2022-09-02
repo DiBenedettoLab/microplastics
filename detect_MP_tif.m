@@ -8,7 +8,7 @@ function detect_MP_tif(n)
 % close all
 
 % n = 1;  % run number
-gdrive_path = 'H:\My Drive\'; % 'G:\My Drive\';  % 'C:\Users\ljbak\My Drive\';  %  
+gdrive_path = 'G:\My Drive\';  % 'C:\Users\ljbak\My Drive\';  %  'H:\My Drive\'; % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 
@@ -25,11 +25,11 @@ nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.Part
 
 % make plots or not
 plot_on1 = 0; % calibration
-plot_on2 = 1; % detection
-plot_on3 = 1; % merged views
+plot_on2 = 0; % detection
+plot_on3 = 0; % merged views
 
 % save results or not
-save_on = 0;
+save_on = 1;
 
 % image parameters 
 cams = cell2mat(cal_params.Cam)';
@@ -184,10 +184,10 @@ for cam = 1:length(cams)
 
 
     %% LOOP OVER FRAMES
-    i0 = 9;
-    nframes = 1;%img_nt;  
+    i0 = 1;
+    nframes = img_nt;  
     
-    for i = i0:i0+nframes-1 % parfor
+    parfor i = i0:i0+nframes-1 % parfor
 
         A = cam_imread([dir_name imgset(i).name], cam_left);
 
@@ -354,7 +354,7 @@ if plot_on3
 %     axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
 %     Mfig2 = figure; set(Mfig2,'position',[-1.9190   -0.1750    1.9200    0.9648]*1000);
 %     axis equal; axis([-.5 .5 -.45 .05]); grid on
-    Mfig = figure; set(Mfig,'position',[1.1983    0.1397    1.3400    1.1000]*1000);
+    Mfig = figure; set(Mfig,'position',[0.0010    0.0410    2.5600    1.3273]*1000); %[-1.9190   -0.1750    1.9200    0.9648]*1000);  % 
     subplot(211); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
     subplot(212); axis equal; axis([-.5 .5 -.45 .05]); grid on
 
@@ -389,7 +389,7 @@ centers = cell(img_nt,1);  % particle centroids [xp, yp]
 angles = cell(img_nt,1);   % particle orientation info [th_p, d_p]
 errchk = cell(img_nt,1);   % error check quantity
 
-overlap_thres = (2e-3)^2; % m (squared)
+overlap_thres = 10e-3; % m 
 
 for i = i0:i0+nframes-1  
     
@@ -430,7 +430,7 @@ for i = i0:i0+nframes-1
     Np = size(cen,1);
     distx = repmat(cen(:,1),1,Np) - repmat(cen(:,1)',Np,1);
     disty = repmat(cen(:,2),1,Np) - repmat(cen(:,2)',Np,1);
-    distp = distx.^2 + disty.^2;
+    distp = sqrt(distx.^2 + disty.^2);
     [idx1,idx2] = find(distp > 0 & distp < overlap_thres);
 
     % remove the smaller/shorter particle
@@ -448,23 +448,19 @@ for i = i0:i0+nframes-1
 
     % plot image array and rectified particles
     if plot_on3
-%         maj1(idx_remove,:) = [];
-%         maj2(idx_remove,:) = [];
-%         min1(idx_remove,:) = [];
-%         min2(idx_remove,:) = [];
+        maj1(idx_remove,:) = [];
+        maj2(idx_remove,:) = [];
+        min1(idx_remove,:) = [];
+        min2(idx_remove,:) = [];
 
         A = zeros(img_iy, 4*img_ix);
         for cam = 1:4
             cam_left = cam <= 2;
-            if strcmp('fmt','tif')
-                A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_imread([dir_name imgset{cam}(i).name], cam_left);
-            else
-                A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_aviread(vid{cam,file_id(i)}, i-start_idx(file_id(i))+1, cam_left);
-            end
+            A(:,img_ix*(cam-1)+1:img_ix*cam) = cam_imread([dir_name imgset{cam}(i).name], cam_left);
         end
 
 %         figure(Mfig1); 
-        subplot(211); cla; imagesc(flipud(A),[0 80]); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
+        subplot(211); cla; imagesc(flipud(A),[0 80]); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray; title(num2str(i))
 %         figure(Mfig2); 
         subplot(212); cla;
         if ~isempty(maj1)

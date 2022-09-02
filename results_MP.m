@@ -35,13 +35,18 @@ for i = 1:(length(n))
     end
 end
 
+% % flip streamwise coord so that flow moves in +x direction (flip y to preserve righthandedness)
+% smtracks(:,[1 3]) = -smtracks(:,[1 3 8]);
+% smangles(:,[2]) = -smangles(:,[2]);             % (?)
+% smangles_cont(:,[2]) = -smangles_cont(:,[2]);             % (?)
+
 % compute error bars (90% CI)
 T_indep = 5;  % number of frames per independent realization
 error_mean = @(q_var,q_N) 1.645*sqrt(q_var./(q_N/T_indep));
 error_var = @(q_var,q_N) q_var.*(1-(q_N/T_indep-1)./chi2inv(0.05,q_N/T_indep-1));
 
 % binning vars
-Nbins = 50;%12;   % number of bins in profiles
+Nbins = 30;%50;%12;   % number of bins in profiles
 binedg = [-.45 -.05];
 prof_ylim = [-.5 0];
 
@@ -85,33 +90,70 @@ for i = 1:length(n)
 end
 
 
-%% preview tracks
-% track lengths
-figure; histogram(smtracklength{1},100)
-xlabel('track length [frames]'); ylabel('count')
+%% particle spatial distribution
+case_idx = 5;
+N=hist3([smtracks{n(case_idx)}(:,1),smtracks{n(case_idx)}(:,2)],'Nbins',[100 50]);
+figure;pcolor(N'); shading flat; axis equal tight
 
+
+%% track length pdf
+z_deep = -.1; % m
+case_idx = 5;
+deep_idx = smtracks{n(case_idx)}(:,2) < z_deep;
+uids = unique(smtracks{n(case_idx)}(deep_idx,5));
+
+% % by frame count
+% figure; histogram(smtracklength{n(case_idx)}(uids),100)  % /run_params.imagingFreq_Hz(n(i)) [s]
+% xlabel('Track length [frames]'); ylabel('Count')
+% xlim([0 500]); goodplot([4 3])
+% 
+% length_long = 50;  % track length considered "long"
+% fraction_long = sum(smtracklength{n(case_idx)}(uids)>=length_long)/length(uids);  % fraction of tracks considered "long"
+% fprintf('%2.1f%% of tracks deeper than %1.2f m are %2d frames or longer\n', fraction_long*100, -z_deep, length_long)
+
+% by length in meters
+trlen_m = zeros(size(smtracklength{n(case_idx)}));
+for i = 1:length(smtracklength{n(case_idx)})
+    idx = smtracks{n(case_idx)}(:,5) == i; 
+    tr_ds = sqrt(diff(smtracks{n(case_idx)}(idx,1)).^2 + diff(smtracks{n(case_idx)}(idx,2)).^2);  % track step lengths
+    trlen_m(i) = sum(tr_ds); % track total length
+end
+
+figure; histogram(trlen_m(uids),50)  
+xlabel('Track length [m]'); ylabel('Count')
+xlim([0 1.5]); 
+goodplot([4 3])
+
+length_long = .2;  % track length considered "long"
+fraction_long = sum(trlen_m(uids)>=length_long)/length(uids);  % fraction of tracks considered "long"
+fprintf('%2.1f%% of tracks deeper than %1.2f m are %1.2f m or longer\n', fraction_long*100, -z_deep, length_long)
+
+
+
+%% preview tracks by track number
 figure;
-track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
-c = jet(100); %jet(length(track_ids));
-velmags = smtracks{1}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
+track_ids = 1:100; %round(linspace(2,length(smtracklength{n(case_idx)}),100));  % 
+c = turbo(length(track_ids)); % turbo(100); %
+velmags = smtracks{case_idx}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
 velmags = velmags - min(velmags);
 velmags = round(velmags*99/max(velmags)) + 1;
 for i = 1:length(track_ids)
-    idx = smtracks{1}(:,5)==track_ids(i);
-    c_idx = velmags(idx); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
-    scatter(smtracks{1}(idx,1),smtracks{1}(idx,2),4,c(c_idx,:),'filled');
+    idx = logical( smtracks{case_idx}(:,5)==track_ids(i) );
+    c_idx = ceil(rand*length(track_ids));% velmags(idx); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
+    scatter(smtracks{case_idx}(idx,1),smtracks{case_idx}(idx,2),4,c(c_idx,:),'filled');
     hold on
 end
 axis equal; axis([-.5 .5 -.45 .05]);
 xlabel('x [m]'); ylabel('y [m]')
 hold off
 
-%% tracks by frame number
-% % load('centers_run01_fs.mat','z_freesurf_inst_rect');
+%% preview tracks by frame number
+% case_idx = 1;
+% load(sprintf('centers_run%02d.mat',n(case_idx)),'z_freesurf_inst_rect');
 % figure;
 % set(gcf,'position',[0.0010    0.0410    1.5360    0.7488]*1000)
 % track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
-% c = jet(100); %jet(length(track_ids));
+% c = turbo(100); %turbo(length(track_ids));
 % velmags = smtracks{1}(:,4); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2); % 
 % velmags = velmags - min(velmags);
 % velmags = round(velmags*99/max(velmags)) + 1;
@@ -122,15 +164,26 @@ hold off
 %     c_idx2 = velmags(idx2); 
 %     scatter(smtracks{1}(idx1,1),smtracks{1}(idx1,2),12,c(c_idx1,:),'filled'); hold on
 %     scatter(smtracks{1}(idx2,1),smtracks{1}(idx2,2),4,c(c_idx2,:),'filled'); 
-% %     plot(z_freesurf_inst_rect{i}(:,1),z_freesurf_inst_rect{i}(:,2),'k-'); 
+%     plot(z_freesurf_inst_rect{i}(:,1),z_freesurf_inst_rect{i}(:,2),'k-'); 
 %     hold off
 %     axis equal; axis([-.5 .5 -.45 .05]);
 %     xlabel('x [m]'); ylabel('y [m]')
 % 
 %     pause(1/10)
-%     fig_to_gif('tracks-n16.gif',0.1)
+% %     fig_to_gif('tracks-n16.gif',0.1)
 % end
 
+
+%% reconstructed tracks with orientation
+case_idx = 5;
+% uid = 1;
+
+[~,track_idx_desc] = sort(smtracklength{n(case_idx)},'descend');
+uid = (track_idx_desc(255));  % particle ID % d5 50 r20 10
+
+figure;
+plot_track_3d(smtracks{n(case_idx)}, smangles_cont{n(case_idx)}, uid, run_params.ParticleType{n(case_idx)}, run_params.Dp_m(n(case_idx))/2);
+goodplot([6 4])
 
 %% concentration
 
@@ -373,6 +426,8 @@ w_wmean = cell(size(n));
 w_uu = cell(size(n));
 w_ww = cell(size(n));
 w_uw = cell(size(n));
+umean_total = zeros(size(n));
+wmean_total = zeros(size(n));
 
 zprof = cell(size(n));
 zprof_k = cell(size(n)); % z normalized by dom wavenumber
@@ -395,6 +450,9 @@ for i = 1:length(n)
     w_uu{i} = error_var(uu{i},N);
     w_ww{i} = error_var(ww{i},N);
     w_uw{i} = error_var(uw{i},N);
+
+    umean_total(i) = mean(smtracks{i}(:,3),'omitnan');
+    wmean_total(i) = mean(smtracks{i}(:,4),'omitnan');
 end
 
 % plot velocity profiles
@@ -431,6 +489,14 @@ compare_plots(uw, zprof_k, mk_col, mk, mk_sz, ls, ...
 xlabel('$\langle u_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
 xlim([-5 5]*1e-3)
 goodplot([6 4])
+
+% print total mean velocity
+disp(umean_total)
+
+figure; plot(run_params.riseVel_m_s(n), -umean_total,'r.','markersize',10)
+xlabel('$W_b$ [m/s]'); ylabel('$\langle \bar{u}\rangle$ [m/s]')
+axis([0.01 0.04 0.03 0.08])
+goodplot([5 4])
 
 
 % % check if developed 
@@ -504,7 +570,7 @@ for i = 1:length(n)
         compare_plots(mat2cell(pzs_rng{i},Npdfs,ones(1,Nbins_wide)), ...
             mat2cell(pzs_pdf{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
         xlabel('$p_z$')
-        sgtitle(run_params.ParticleType{i})
+        sgtitle(run_params.ParticleType{n(i)})
         goodplot([6 4])
     end
 end
@@ -570,7 +636,7 @@ for i = 1:length(n)
     
 %     figure;
 %     track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
-%     c = jet(100); %jet(length(track_ids));
+%     c = turbo(100); %turbo(length(track_ids));
 %     velmags = u_filtered; %sqrt(u_filtered.^2 + w_filtered.^2);
 %     velmags = velmags - min(velmags);
 %     velmags = round(velmags*99/max(velmags)) + 1;
@@ -619,7 +685,7 @@ end
 i = 1;
 figure;
 track_ids = round(linspace(2,length(smtracklength{1}),100));  % 1:30; %
-c = jet(100); %jet(length(track_ids));
+c = turbo(100); %turbo(length(track_ids));
 velmags = smtracks_turb{i}(:,3); %sqrt(u_filtered.^2 + w_filtered.^2);
 velmags = velmags - min(velmags);
 velmags = round(velmags*99/max(velmags)) + 1;
@@ -649,7 +715,7 @@ xlabel('track length [frames]'); ylabel('count')
 i = 1;
 figure;
 track_ids = round(linspace(2,length(smtracklength_wave{i}),100));  % 1:30; %
-c = jet(100); %jet(length(track_ids));
+c = turbo(100); %turbo(length(track_ids));
 velmags = smtracks_wave{i}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
 velmags = velmags - min(velmags);
 velmags = round(velmags*99/max(velmags)) + 1;

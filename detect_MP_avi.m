@@ -25,7 +25,7 @@ nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.Part
 
 % make plots or not
 plot_on1 = 0; % calibration
-plot_on2 = 1; % detection
+plot_on2 = 0; % detection
 plot_on3 = 0; % merged views
 
 % save results or not
@@ -416,7 +416,7 @@ centers = cell(img_nt,1);  % particle centroids [xp, yp]
 angles = cell(img_nt,1);   % particle orientation info [th_p, d_p]
 errchk = cell(img_nt,1);   % error check quantity
 
-overlap_thres = (2e-3)^2; % m (squared)
+overlap_thres = 10e-3; % m
 
 for i = i0:i0+nframes-1  
     
@@ -457,7 +457,7 @@ for i = i0:i0+nframes-1
     Np = size(cen,1);
     distx = repmat(cen(:,1),1,Np) - repmat(cen(:,1)',Np,1);
     disty = repmat(cen(:,2),1,Np) - repmat(cen(:,2)',Np,1);
-    distp = distx.^2 + disty.^2;
+    distp = sqrt(distx.^2 + disty.^2);
     [idx1,idx2] = find(distp > 0 & distp < overlap_thres);
 
     % remove the smaller/shorter particle

@@ -1,5 +1,5 @@
 % preprocess_MP sensitivity
-function mean_dist_error_mm = preprocess_MP_sens(n)
+function preprocess_MP_sens(n)
 
 % clear
 % close all
@@ -142,7 +142,7 @@ end
 %% error on distances
 % plot to see the order of detected particles (for entering the
 % interparticle distances in spreadsheet)
-% figure; plot(centers{1}(:,1),centers{1}(:,2),'*-'); axis equal 
+figure; plot(centers{1}(:,1),centers{1}(:,2),'*-'); axis equal 
 
 Np_true = 10; % true number of particles
 Np = size(centers{1}(:,1),1); % detected number of particles
@@ -164,4 +164,4 @@ mean_dist_error_mm = mean(abs(dist_error(:)),'omitnan')*1000;
 disp('mean error distance mm')
 disp(mean_dist_error_mm)
 
-% keyboard
+keyboard
