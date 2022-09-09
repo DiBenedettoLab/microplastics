@@ -100,7 +100,7 @@ figure;pcolor(N'); shading flat; axis equal tight
 z_deep = -.1; % m
 case_idx = 5;
 deep_idx = smtracks{n(case_idx)}(:,2) < z_deep;
-uids = unique(smtracks{n(case_idx)}(deep_idx,5));
+uids_deep = unique(smtracks{n(case_idx)}(deep_idx,5));
 
 % % by frame count
 % figure; histogram(smtracklength{n(case_idx)}(uids),100)  % /run_params.imagingFreq_Hz(n(i)) [s]
@@ -112,6 +112,7 @@ uids = unique(smtracks{n(case_idx)}(deep_idx,5));
 % fprintf('%2.1f%% of tracks deeper than %1.2f m are %2d frames or longer\n', fraction_long*100, -z_deep, length_long)
 
 % by length in meters
+% all tracks
 trlen_m = zeros(size(smtracklength{n(case_idx)}));
 for i = 1:length(smtracklength{n(case_idx)})
     idx = smtracks{n(case_idx)}(:,5) == i; 
@@ -119,33 +120,48 @@ for i = 1:length(smtracklength{n(case_idx)})
     trlen_m(i) = sum(tr_ds); % track total length
 end
 
-figure; histogram(trlen_m(uids),50)  
-xlabel('Track length [m]'); ylabel('Count')
-xlim([0 1.5]); 
-goodplot([4 3])
+% deep tracks
+trlen_m = zeros(size(smtracklength{n(case_idx)}));
+for i = 1:length(smtracklength{n(case_idx)})
+    idx = smtracks{n(case_idx)}(:,5) == i; 
+    tr_ds = sqrt(diff(smtracks{n(case_idx)}(idx,1)).^2 + diff(smtracks{n(case_idx)}(idx,2)).^2);  % track step lengths
+    trlen_m(i) = sum(tr_ds); % track total length
+end
+
+figure; histogram(trlen_m,60,'FaceColor',ebar_gray,'Normalization','pdf')  
+xlabel('Track length [m]: all tracks'); ylabel('PDF'); xlim([0 1.5]); 
+% annotation('textbox','string','(a)','position',[0.8 0.8 0.1 0.1],'edgecolor','none')
+goodplot([4 4])
+
+figure; histogram(trlen_m(uids_deep),60,'FaceColor',ebar_gray,'Normalization','pdf')  
+xlabel(sprintf('Track length [m]: deeper than %1.1f m',z_deep)); ylabel('PDF'); xlim([0 1.5]); 
+% annotation('textbox','string','(b)','position',[0.8 0.8 0.1 0.1],'edgecolor','none')
+goodplot([4 4])
 
 length_long = .2;  % track length considered "long"
-fraction_long = sum(trlen_m(uids)>=length_long)/length(uids);  % fraction of tracks considered "long"
+fraction_long = sum(trlen_m(uids_deep)>=length_long)/length(uids_deep);  % fraction of tracks considered "long"
 fprintf('%2.1f%% of tracks deeper than %1.2f m are %1.2f m or longer\n', fraction_long*100, -z_deep, length_long)
 
 
 
 %% preview tracks by track number
 figure;
-track_ids = 1:100; %round(linspace(2,length(smtracklength{n(case_idx)}),100));  % 
+track_ids = round(linspace(3,length(smtracklength{n(case_idx)}),100));  % 1:100; %
 c = turbo(length(track_ids)); % turbo(100); %
-velmags = smtracks{case_idx}(:,3); %sqrt(smtracks{1}(:,3).^2 + smtracks{1}(:,4).^2);
+velmags = sqrt(smtracks{case_idx}(:,3).^2 + smtracks{case_idx}(:,4).^2);  %  smtracks{case_idx}(:,4); %  
 velmags = velmags - min(velmags);
 velmags = round(velmags*99/max(velmags)) + 1;
 for i = 1:length(track_ids)
     idx = logical( smtracks{case_idx}(:,5)==track_ids(i) );
-    c_idx = ceil(rand*length(track_ids));% velmags(idx); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
+    c_idx = velmags(idx); % ceil(rand*length(track_ids));% round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
     scatter(smtracks{case_idx}(idx,1),smtracks{case_idx}(idx,2),4,c(c_idx,:),'filled');
     hold on
 end
 axis equal; axis([-.5 .5 -.45 .05]);
 xlabel('x [m]'); ylabel('y [m]')
 hold off
+
+goodplot([7 4.5])
 
 %% preview tracks by frame number
 % case_idx = 1;
@@ -175,15 +191,51 @@ hold off
 
 
 %% reconstructed tracks with orientation
-case_idx = 5;
+case_idx = 3;
 % uid = 1;
 
 [~,track_idx_desc] = sort(smtracklength{n(case_idx)},'descend');
-uid = (track_idx_desc(255));  % particle ID % d5 50 r20 10
+uid = (track_idx_desc(1));  % particle ID % d5 50 r20 10 d7 202
 
 figure;
 plot_track_3d(smtracks{n(case_idx)}, smangles_cont{n(case_idx)}, uid, run_params.ParticleType{n(case_idx)}, run_params.Dp_m(n(case_idx))/2);
+set(gca,'ytick',''); ylabel('')
+set(gca,'View',[28.9595 19.7060])
 goodplot([6 4])
+
+
+%% ------------------ EXIF ABOVE, RESULTS PAPER BELOW -------------------- %
+return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 %% concentration
 
@@ -493,7 +545,7 @@ goodplot([6 4])
 % print total mean velocity
 disp(umean_total)
 
-figure; plot(run_params.riseVel_m_s(n), -umean_total,'r.','markersize',10)
+figure; plot(run_params.riseVel_m_s(n), umean_total,'r.','markersize',10)
 xlabel('$W_b$ [m/s]'); ylabel('$\langle \bar{u}\rangle$ [m/s]')
 axis([0.01 0.04 0.03 0.08])
 goodplot([5 4])

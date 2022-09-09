@@ -48,8 +48,9 @@ tol = 0.005; % tolerance (max dist from frame edge)
 [tracks0, tracklength0] = filter_ghost_tracks(tracks0, tracklength0, frame_edges, tol);
 
 %% flip streamwise coord and orientation (WASIRF-specific)
-tracks0(:,1) = -tracks0(:,1);
-tracks0(:,10) = -tracks0(:,10)+pi;
+tracks0(:,1) = -tracks0(:,1);  % x
+tracks0(:,3) = -tracks0(:,3);  % u
+tracks0(:,10) = -tracks0(:,10);  % theta
 
 %% smooth tracks
 sm_fn = sprintf('smtracks_run%02d.mat',n);
