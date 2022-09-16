@@ -1,4 +1,4 @@
-function detect_MP_tif(n)
+% function detect_MP_tif(n)
 % input n = run number
 % MP particle detection and coordinate mapping
 
@@ -7,8 +7,8 @@ function detect_MP_tif(n)
 % clear
 % close all
 
-% n = 1;  % run number
-gdrive_path = 'G:\My Drive\';  % 'C:\Users\ljbak\My Drive\';  %  'H:\My Drive\'; % 
+n = 4;  % run number
+gdrive_path = 'C:\Users\ljbak\My Drive\';  %  'G:\My Drive\';  % 'H:\My Drive\'; % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 
@@ -25,11 +25,11 @@ nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.Part
 
 % make plots or not
 plot_on1 = 0; % calibration
-plot_on2 = 0; % detection
-plot_on3 = 0; % merged views
+plot_on2 = 01; % detection
+plot_on3 = 1; % merged views
 
 % save results or not
-save_on = 1;
+save_on = 0;
 
 % image parameters 
 cams = cell2mat(cal_params.Cam)';
@@ -184,10 +184,10 @@ for cam = 1:length(cams)
 
 
     %% LOOP OVER FRAMES
-    i0 = 1;
-    nframes = img_nt;  
+    i0 = 5;
+    nframes = 1;%img_nt;  
     
-    parfor i = i0:i0+nframes-1 % parfor
+    for i = i0:i0+nframes-1 % parfor
 
         A = cam_imread([dir_name imgset(i).name], cam_left);
 
@@ -300,8 +300,8 @@ for cam = 1:length(cams)
     
         % MAKE PLOTS
         if plot_on2
-            subplot(121); cla; pcolor_img(B); 
-            subplot(122); cla; pcolor_img(A0); hold on
+            subplot(121); cla; pcolor_img(A0); 
+            subplot(122); cla; pcolor_img(B); hold on
             if ~isempty(xp)
                 % plot centroid
                 plot(xp,yp,'r.','markersize',4'); 
@@ -313,7 +313,7 @@ for cam = 1:length(cams)
                         'color','r','linewidth',0.75,'linestyle','-');
                     line([xp - len2/2.*cos(th_p-pi/2), xp + len2/2.*cos(th_p-pi/2)]', ...
                         [yp - len2/2.*sin(th_p-pi/2), yp + len2/2.*sin(th_p-pi/2)]', ...
-                        'color','y','linewidth',0.75,'linestyle','-'); 
+                        'color','b','linewidth',0.75,'linestyle','-'); 
                 elseif strncmp(run_params.ParticleType{n},'r',1)
                     line([xp - len1/2.*cos(th_p), xp + len1/2.*cos(th_p)]', ...
                         [yp - len1/2.*sin(th_p), yp + len1/2.*sin(th_p)]', ...
@@ -354,7 +354,7 @@ if plot_on3
 %     axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
 %     Mfig2 = figure; set(Mfig2,'position',[-1.9190   -0.1750    1.9200    0.9648]*1000);
 %     axis equal; axis([-.5 .5 -.45 .05]); grid on
-    Mfig = figure; set(Mfig,'position',[0.0010    0.0410    2.5600    1.3273]*1000); %[-1.9190   -0.1750    1.9200    0.9648]*1000);  % 
+    Mfig = figure; set(Mfig,'position',[0.0010    0.0410    1.5360    0.7488]*1000); %[-1.9190   -0.1750    1.9200    0.9648]*1000);  % 
     subplot(211); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray
     subplot(212); axis equal; axis([-.5 .5 -.45 .05]); grid on
 
@@ -460,7 +460,8 @@ for i = i0:i0+nframes-1
         end
 
 %         figure(Mfig1); 
-        subplot(211); cla; imagesc(flipud(A),[0 80]); axis equal; axis([0 4*img_ix 0 img_iy]); colormap gray; title(num2str(i))
+        subplot(211); cla; imagesc(flipud(A),[0 80]); axis equal; axis([0 4*img_ix 0 img_iy]); 
+        colormap gray; set(gca,'YTick',[],'XTick',[]); %title(num2str(i))
 %         figure(Mfig2); 
         subplot(212); cla;
         if ~isempty(maj1)

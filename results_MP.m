@@ -4,7 +4,7 @@
 close all
 clear
 
-gdrive_path = 'C:\Users\ljbak\My Drive\';  %  'H:\My Drive\';  %  'G:\My Drive\';  % 
+gdrive_path = 'C:\Users\ljbak\My Drive\';  % 'H:\My Drive\';  %  %  'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 n = [1:6]; %  runs to include
@@ -102,6 +102,14 @@ case_idx = 5;
 deep_idx = smtracks{n(case_idx)}(:,2) < z_deep;
 uids_deep = unique(smtracks{n(case_idx)}(deep_idx,5));
 
+% uids_deep = [];
+% for i = 1:length(smtracklength{n(case_idx)})
+%     idx = smtracks{n(case_idx)}(:,5) == i;
+%     if all(smtracks{n(case_idx)}(idx,2) < z_deep)
+%         uids_deep = [uids_deep; i];
+%     end
+% end
+
 % % by frame count
 % figure; histogram(smtracklength{n(case_idx)}(uids),100)  % /run_params.imagingFreq_Hz(n(i)) [s]
 % xlabel('Track length [frames]'); ylabel('Count')
@@ -191,14 +199,14 @@ goodplot([7 4.5])
 
 
 %% reconstructed tracks with orientation
-case_idx = 3;
+case_idx = 6;
 % uid = 1;
 
 [~,track_idx_desc] = sort(smtracklength{n(case_idx)},'descend');
-uid = (track_idx_desc(1));  % particle ID % d5 50 r20 10 d7 202
+uid = (track_idx_desc(40));  % particle ID % d5 50 r20 10 d7 202
 
 figure;
-plot_track_3d(smtracks{n(case_idx)}, smangles_cont{n(case_idx)}, uid, run_params.ParticleType{n(case_idx)}, run_params.Dp_m(n(case_idx))/2);
+plot_track_3d(smtracks{n(case_idx)}, smangles{n(case_idx)}, uid, run_params.ParticleType{n(case_idx)}, run_params.Dp_m(n(case_idx))/2);
 set(gca,'ytick',''); ylabel('')
 set(gca,'View',[28.9595 19.7060])
 goodplot([6 4])
