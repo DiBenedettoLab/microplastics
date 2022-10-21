@@ -25,8 +25,8 @@ nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.Part
 
 % make plots or not
 plot_on1 = 0; % calibration
-plot_on2 = 01; % detection
-plot_on3 = 1; % merged views
+plot_on2 = 1; % detection
+plot_on3 = 0; % merged views
 
 % save results or not
 save_on = 0;
@@ -184,8 +184,8 @@ for cam = 1:length(cams)
 
 
     %% LOOP OVER FRAMES
-    i0 = 5;
-    nframes = 1;%img_nt;  
+    i0 = 1;
+    nframes = 10;%img_nt;  
     
     for i = i0:i0+nframes-1 % parfor
 
@@ -300,8 +300,9 @@ for cam = 1:length(cams)
     
         % MAKE PLOTS
         if plot_on2
-            subplot(121); cla; pcolor_img(A0); 
-            subplot(122); cla; pcolor_img(B); hold on
+%             subplot(121); 
+            cla; pcolor_img(A0); hold on
+%             subplot(122); cla; pcolor_img(B); hold on
             if ~isempty(xp)
                 % plot centroid
                 plot(xp,yp,'r.','markersize',4'); 
