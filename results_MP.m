@@ -4,10 +4,10 @@
 close all
 clear
 
-gdrive_path = 'C:\Users\ljbak\My Drive\';  % 'H:\My Drive\';  %   'G:\My Drive\';  % 
+gdrive_path = 'H:\My Drive\';  %  'C:\Users\ljbak\My Drive\';  %  'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
-n = [15,13,1:6]; %  runs to include
+n = [15,13,1:6]; %,16,14,7:12]; %  runs to include
 % n = [16,14,7:12];
 
 % load experiment params
@@ -36,11 +36,6 @@ for i = 1:(length(n))
     end
 end
 
-% % flip streamwise coord so that flow moves in +x direction (flip y to preserve righthandedness)
-% smtracks(:,[1 3]) = -smtracks(:,[1 3 8]);
-% smangles(:,[2]) = -smangles(:,[2]);             % (?)
-% smangles_cont(:,[2]) = -smangles_cont(:,[2]);             % (?)
-
 % compute error bars (90% CI)
 T_indep = 5;  % number of frames per independent realization
 error_mean = @(q_var,q_N) 1.645*sqrt(q_var./(q_N/T_indep));
@@ -66,10 +61,18 @@ ebar_green = [0.4 0.7 0.4];
 sym_green = [0 .5 0];
 
 mk_col = {'k' 'k' 'k' 'r' 'r' 'b' 'b' 'b'};
+mk_col2 = {ebar_gray ebar_gray ebar_gray ebar_red ebar_red ebar_blue ebar_blue ebar_blue};
+mk_col = [mk_col mk_col2];
 mk = {'.' '.' '.' '+' '+' 'o' 'o' 'o'};
+mk = [mk mk];
 mk_sz = [6 9 12 5 10 3 5 7];
+mk_sz = [mk_sz mk_sz];
 ls = {'-' '-' '-' '-' '-' '-' '-' '-'};
+ls = [ls ls];
+ls2 = {'none' 'none' 'none' 'none' 'none' 'none' 'none' 'none'};
+ls2 = [ls2 ls2];
 eb_col = {ebar_gray ebar_gray ebar_gray ebar_red ebar_red ebar_blue ebar_blue ebar_blue};
+eb_col = [eb_col eb_col];
 lstr = cellfun(@upper, run_params.ParticleType(n), 'UniformOutput', false)';  
 
 % channel geometry & physical quantities
@@ -294,15 +297,19 @@ axis([0 4 prof_zlim])
 xlabel('$C/C_0$'); ylabel('$z$ [m]'); legend(l,lstr,'location','se')
 goodplot([6 5])
 
-%% theoretical profile
-dz = 0.07; % 0.055; % 
+%% fit and theoretical profile
+dz = [0.07*ones(size(n/2)), 0.055*ones(size(n/2))]; % 0.055; % 
 Lm_fit = zeros(size(n));
 C0 = zeros(size(n));
 for i = 1:length(n)
-    P = polyfit((zprof{i}+dz),log(Cnorm{i}),1);
+    P = polyfit((zprof{i}+dz(i)),log(Cnorm{i}),1);
     Lm_fit(i) = 1/P(1);
     C0(i) = exp(P(2));
 end
+
+% Lm vs Wb
+figure; plot(run_params.riseVel_m_s(n),Lm_fit,'+')
+xlabel('W_b [m/s]'); ylabel('L_m [m]')
 
 A0 = 1.5*ut*0.4*Hs;
 Lm_theor = A0./run_params.riseVel_m_s(n)';
@@ -320,12 +327,12 @@ z_Lm = zprof;
 for i = 1:length(n)
     C_C0{i} = Cnorm{i}/C0(i);
     w_C_C0{i} = w_C{i}/C0(i);
-    z_Lm{i} = (zprof{i}+dz)/Lm_fit(i); % Lm_theor(i); %
+    z_Lm{i} = (zprof{i}+dz(i))/Lm_fit(i); % Lm_theor(i); %
 end
 figure; l = compare_plots(C_C0, z_Lm, mk_col, mk, mk_sz, ls, ...
     w_C_C0, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 hold on; l2 = plot(exp(-8:.1:0),-8:.1:0,'k--','linewidth',2);
-ylim([-3 0])
+ylim([-3 0]); xlim([0 2])
 xlabel('$C/C_0$'); ylabel('$(z-\Delta z)/L_m$'); legend([l;l2],[lstr,{'Fit'}],'location','se')
 goodplot([6 5])
 
@@ -675,12 +682,15 @@ rad_level = @(z) exp(z/Lz);   % normalized by surface intensity
 Anorm = cell(size(n));      % particle planar area normal to vertical, not normalized [m^2]
 Anorm_max = cell(size(n));  % particle planar area normal to vertical normalized by MAX AREA
 Anorm_sph = cell(size(n));  % particle planar area normal to vertical normalized by EQUIVALENT SPHERE AREA
+
 irrad = cell(size(n));      % irradiation [W]
 irrad_max = cell(size(n));  % irradiation on particle normalized by its max planar area and surface light level
 irrad_sph = cell(size(n));  % irradiation on particle normalized by its equiv sphere planar area and surface light level
+irrad_depthonly = cell(size(n)); % irradiation on particle only considering depth
 irrad_mean = zeros(size(n));
 irrad_max_mean = zeros(size(n));
 irrad_sph_mean = zeros(size(n));
+irrad_depthonly_mean = zeros(size(n));
 
 for i = 1:length(n)
     Anorm{i} = ones(length(smtracks{i}),1)*run_params.Dp_m(n(i))^2/4*pi;
@@ -692,7 +702,7 @@ for i = 1:length(n)
             Anorm_max{i} = abs(smangles{i}(:,2));  
             Anorm_sph{i} = Anorm_max{i}/(3/2*AR(i))^(2/3);
         else
-            Anorm{i} = abs(smangles{i}(:,2))*run_params.Dp_m(n(i))*1.75e-3;
+            Anorm{i} = (1 - abs(smangles{i}(:,2)))*run_params.Dp_m(n(i))*1.75e-3;
             Anorm_max{i} = sqrt(1 - (smangles{i}(:,2).^2));
             Anorm_sph{i} = Anorm_max{i}/(pi*(9/16*1/AR(i))^(1/3));
         end
@@ -700,38 +710,51 @@ for i = 1:length(n)
     irrad{i} = Anorm{i}.*rad_level(smtracks{i}(:,2));
     irrad_max{i} = Anorm_max{i}.*rad_level(smtracks{i}(:,2));
     irrad_sph{i} = Anorm_sph{i}.*rad_level(smtracks{i}(:,2));
+    irrad_depthonly{i} = rad_level(smtracks{i}(:,2));
     irrad_mean(i) = mean(irrad{i},'omitnan');
     irrad_max_mean(i) = mean(irrad_max{i},'omitnan');
     irrad_sph_mean(i) = mean(irrad_sph{i},'omitnan');
+    irrad_depthonly_mean(i) = mean(irrad_depthonly{i},'omitnan');
 end
 
-fprintf(['irradiation normalized by surface intensity: [m^-2]\n' ...
-    '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:});
-disp(irrad_mean)
-fprintf(['irradiation normalized by max planar area and surface intensity:\n' ...
-    '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:});
-disp(irrad_max_mean)
-fprintf(['irradiation normalized by planar area of equiv sphere and surface intensity:\n' ...
-    '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:})
-disp(irrad_sph_mean)
+% fprintf(['irradiation normalized by surface intensity: [m^-2]\n' ...
+%     '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:});
+% disp(irrad_mean)
+% fprintf(['irradiation normalized by max planar area and surface intensity:\n' ...
+%     '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:});
+% disp(irrad_max_mean)
+% fprintf(['irradiation normalized by planar area of equiv sphere and surface intensity:\n' ...
+%     '\t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \t\t%s \n'], lstr{:})
+% disp(irrad_eqsph_mean)
 
 % plot
-figure;
-compare_plots(num2cell(run_params.riseVel_m_s(n)), num2cell(irrad_max_mean),mk_col,mk,mk_sz,ls);
-xlabel('W_b [m/s]'); ylabel('I_{norm,max}')
+% figure;
+% compare_plots(num2cell(run_params.riseVel_m_s(n)), num2cell(irrad_max_mean),mk_col,mk,mk_sz,ls2);
+% xlabel('W_b [m/s]'); ylabel('I_{norm,max}')
+% 
+% figure;
+% compare_plots(num2cell(run_params.riseVel_m_s(n)), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
+% xlabel('W_b [m/s]'); ylabel('I_{norm,sph}')
+% 
+% figure;
+% compare_plots(num2cell(Lm_fit), num2cell(irrad_max_mean),mk_col,mk,mk_sz,ls2);
+% xlabel('L_m [m]'); ylabel('I_{norm,max}')
 
 figure;
-compare_plots(num2cell(run_params.riseVel_m_s(n)), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls);
-xlabel('W_b [m/s]'); ylabel('I_{norm,sph}')
+compare_plots(num2cell(Lm_fit), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{sph}}$'); %ylabel('$I_{norm,sph}$')
+axis([0.05 .45 0.1 1.4])
+legend(lstr,'location','northeastoutside')
+goodplot([5.5 4])
 
 figure;
-compare_plots(num2cell(Lm_fit), num2cell(irrad_max_mean),mk_col,mk,mk_sz,ls);
-xlabel('L_m [m]'); ylabel('I_{norm,max}')
-
-figure;
-compare_plots(num2cell(Lm_fit), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls);
-xlabel('L_m [m]'); ylabel('I_{norm,sph}')
-
+compare_plots(num2cell(Lm_fit), num2cell(irrad_depthonly_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m$ [m]'); ylabel('$I/I_0$')
+% legend(lstr,'location','northeastoutside')
+goodplot([4 3])
+% P = polyfit(Lm_fit,log(irrad_max_plan_mean),1);
+% Lm_vec = 0:0.01:0.4;
+% hold on; plot(Lm_vec, exp(P(2))*exp(Lm_vec*P(1)));
 
 % % ---------- experimental stuff below ------------ % %
 return
