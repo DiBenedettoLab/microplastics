@@ -1,7 +1,7 @@
 function [avar_k] = preprocess_MP(n)
 % preprocess_MP
 
-gdrive_path = 'G:\My Drive\';  %  'C:\Users\ljbak\My Drive\';  % 'H:\My Drive\'; % 
+gdrive_path = 'H:\My Drive\'; % 'G:\My Drive\';  %  'C:\Users\ljbak\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 % n = 1;  % run number
@@ -80,21 +80,21 @@ if nonsphere
 end
 
 %% preview tracks
-% track lengths
-figure; histogram(smtracklength,100)
-xlabel('track length [frames]'); ylabel('count')
-
-figure;
-track_ids = 1:200;% find(smtracklength>300); % round(linspace(1,ntracks,100));  % 1:30; %
-c = jet(length(track_ids));
-for i = 1:length(track_ids)
-    idx = smtracks(:,5)==track_ids(i);
-    c_idx = ceil(rand*length(track_ids)); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
-    plot(smtracks(idx,1),smtracks(idx,2),'.','color',c(c_idx,:));
-    hold on
-end
-axis equal; axis([-.5 .5 -.45 .05]);
-xlabel('x [m]'); ylabel('y [m]')
+% % track lengths
+% figure; histogram(smtracklength,100)
+% xlabel('track length [frames]'); ylabel('count')
+% 
+% figure;
+% track_ids = 1:200;% find(smtracklength>300); % round(linspace(1,ntracks,100));  % 1:30; %
+% c = jet(length(track_ids));
+% for i = 1:length(track_ids)
+%     idx = smtracks(:,5)==track_ids(i);
+%     c_idx = ceil(rand*length(track_ids)); % round(smtracklength(track_ids(i))/max(smtracklength(track_ids))*length(track_ids));
+%     plot(smtracks(idx,1),smtracks(idx,2),'.','color',c(c_idx,:));
+%     hold on
+% end
+% axis equal; axis([-.5 .5 -.45 .05]);
+% xlabel('x [m]'); ylabel('y [m]')
 
 % fidx = smtracks(:,7)==1;
 % pts = plot(smtracks(fidx,1),smtracks(fidx,2),'ko');

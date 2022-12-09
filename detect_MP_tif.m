@@ -7,7 +7,7 @@
 % clear
 % close all
 
-n = 4;  % run number
+n = 1;  % run number
 gdrive_path = 'C:\Users\ljbak\My Drive\';  %  'G:\My Drive\';  % 'H:\My Drive\'; % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
@@ -25,7 +25,7 @@ nonsphere = strncmp(run_params.ParticleType{n},'d',1) || strncmp(run_params.Part
 
 % make plots or not
 plot_on1 = 0; % calibration
-plot_on2 = 1; % detection
+plot_on2 = 0; % detection
 plot_on3 = 0; % merged views
 
 % save results or not

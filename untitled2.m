@@ -1,7 +1,5 @@
-for n=2:6
-    preprocess_MP(n)
-end
-
-for n=8:12
-    preprocess_MP(n)
+parfor n=2:12
+    if n~=7
+        preprocess_MP(n)
+    end
 end

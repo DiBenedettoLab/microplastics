@@ -4,7 +4,7 @@
 close all
 clear
 
-gdrive_path = 'H:\My Drive\';  %  'C:\Users\ljbak\My Drive\';  %  'G:\My Drive\';  % 
+gdrive_path =  'H:\My Drive\';  % 'C:\Users\ljbak\My Drive\';   %  'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 n = [15,13,1:6]; %,16,14,7:12]; %  runs to include
@@ -311,6 +311,12 @@ end
 figure; plot(run_params.riseVel_m_s(n),Lm_fit,'+')
 xlabel('W_b [m/s]'); ylabel('L_m [m]')
 
+% use fit Lm and measured rise vel to estimate diffusivity
+Lm_Wb = Lm_fit.*run_params.riseVel_m_s(n)';
+figure; plot(run_params.riseVel_m_s(n),Lm_Wb,'+')
+xlabel('W_b [m/s]'); ylabel('L_m*W_b [m^2/s]'); axis([0.015 0.06 2e-3 12e-3])
+
+% theoretical Lm
 A0 = 1.5*ut*0.4*Hs;
 Lm_theor = A0./run_params.riseVel_m_s(n)';
 
@@ -467,7 +473,8 @@ for i = 1:length(n)
 end
 
 % plot
-pdf_col = mat2cell(parula(Nbins_wide),ones(1,Nbins_wide),3);
+pdf_col = mat2cell(parula(Nbins_wide+1),ones(1,Nbins_wide+1),3);
+pdf_col = pdf_col(1:end-1);
 pdf_mk = {'.' '.' '.' '.' '.' '.'};
 pdf_mk_sz = 10*ones(Nbins_wide,1);
 pdf_ls = {'-' '-' '-' '-' '-' '-'};
@@ -527,12 +534,12 @@ for i = 1:length(n)
     wmean_total(i) = mean(smtracks{i}(:,4),'omitnan');
 end
 
-% plot velocity profiles
+%% plot velocity profiles
 figure;
-subplot(121); 
-l = compare_plots(umean, zprof_k, mk_col, mk, mk_sz, ls, ...
+% subplot(121); 
+l = compare_plots(umean, zprof, mk_col, mk, mk_sz, ls, ...
     w_umean, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle u_p\rangle$ [m/s]'); ylabel('$zk_{dom}$')
+xlabel('$\langle u_p\rangle$ [m/s]'); ylabel('$z$ [m]')
 legend(l,lstr,'location','sw')
 
 subplot(122); 
@@ -618,10 +625,11 @@ for i = 1:length(n)
 end
 
 % plot orientation pdfs
-pdf_col = mat2cell(parula(Nbins_wide),ones(1,Nbins_wide),3);
-pdf_mk = {'.' '.' '.' '.' '.' '.'};
-pdf_mk_sz = 10*ones(Nbins_wide,1);
-pdf_ls = {'-' '-' '-' '-' '-' '-'};
+% pdf_col = mat2cell(parula(Nbins_wide+1),ones(1,Nbins_wide),3);
+% pdf_col = pdf_col{1:end-1};
+% pdf_mk = {'.' '.' '.' '.' '.' '.'};
+% pdf_mk_sz = 10*ones(Nbins_wide,1);
+% pdf_ls = {'-' '-' '-' '-' '-' '-'};
 
 for i = 1:length(n)
     if nonsphere(i)
@@ -648,10 +656,10 @@ for i = 1:length(n)
 end
 
 %% plot pz pdfs only
-pdf_col = mat2cell(parula(Nbins_wide),ones(1,Nbins_wide),3);
-pdf_mk = {'.' '.' '.' '.' '.' '.'};
-pdf_mk_sz = 10*ones(Nbins_wide,1);
-pdf_ls = {'-' '-' '-' '-' '-' '-'};
+% pdf_col = mat2cell(parula(Nbins_wide),ones(1,Nbins_wide),3);
+% pdf_mk = {'.' '.' '.' '.' '.' '.'};
+% pdf_mk_sz = 10*ones(Nbins_wide,1);
+% pdf_ls = {'-' '-' '-' '-' '-' '-'};
 
 figure;
 sp_count = 0;
@@ -671,6 +679,14 @@ for i = 1:length(n)
 end
 goodplot([10 4])
 
+%% one axis
+figure;
+l = compare_plots(mat2cell([pz_rng{5}(:,[1,4]), pz_rng{7}(:,[1 4])],Npdf,ones(1,4)), ...
+    mat2cell([pz_pdf{5}(:,[1 4]), pz_pdf{7}(:,[1 4])],Npdf,ones(1,4)), ...
+    pdf_col([1 4 1 4]),{'+' '+' 'o' 'o'},[10 10 6 6],{'-' '-' '-' '-'});
+xlabel('$|p_z|$'); ylabel('PDF'); set(gca,'Yticklabel',[])
+legend(l,{'R20, deep', 'R20, shallow', 'D7, deep', 'D7, shallow'},'location','nw')
+goodplot([5 5])
 
 %% depth & orientation = irradiation
 
@@ -679,42 +695,49 @@ Lz = .2; % light decay lengthscale [m]  (ARBITRARY)
 rad_level = @(z) exp(z/Lz);   % normalized by surface intensity
 % rad_level = @(z) 1;
 
-Anorm = cell(size(n));      % particle planar area normal to vertical, not normalized [m^2]
-Anorm_max = cell(size(n));  % particle planar area normal to vertical normalized by MAX AREA
-Anorm_sph = cell(size(n));  % particle planar area normal to vertical normalized by EQUIVALENT SPHERE AREA
-
+Anormal = cell(size(n));      % particle planar area normal to vertical, not normalized [m^2]
 irrad = cell(size(n));      % irradiation [W]
 irrad_max = cell(size(n));  % irradiation on particle normalized by its max planar area and surface light level
 irrad_sph = cell(size(n));  % irradiation on particle normalized by its equiv sphere planar area and surface light level
+irrad_rand = cell(size(n)); 
 irrad_depthonly = cell(size(n)); % irradiation on particle only considering depth
 irrad_mean = zeros(size(n));
 irrad_max_mean = zeros(size(n));
 irrad_sph_mean = zeros(size(n));
 irrad_depthonly_mean = zeros(size(n));
+irrad_rand_mean = zeros(size(n));
 
-for i = 1:length(n)
-    Anorm{i} = ones(length(smtracks{i}),1)*run_params.Dp_m(n(i))^2/4*pi;
-    Anorm_max{i} = ones(length(smtracks{i}),1);
-    Anorm_sph{i} = ones(length(smtracks{i}),1);
-    if nonsphere(i) 
+for i = 1:length(n)   
+    pz_rand = 3/8; % mean pz of random orientation distribution (COM of hemisphere)
+    if nonsphere(i)  
         if strncmp(run_params.ParticleType{n(i)},'d',1)
-            Anorm{i} = abs(smangles{i}(:,2))*run_params.Dp_m(n(i))^2/4*pi;
-            Anorm_max{i} = abs(smangles{i}(:,2));  
-            Anorm_sph{i} = Anorm_max{i}/(3/2*AR(i))^(2/3);
+            Ap = run_params.Dp_m(n(i))^2/4*pi; % particle nominal area
+            A_eqsph = Ap*(3/2*AR(i))^(2/3);  % xsec area of equiv-volume sphere
+            A_rand = Ap*pz_rand;  % mean normal area of randomly oriented particles
+            Anormal{i} = abs(smangles{i}(:,2))*Ap; % normal area
         else
-            Anorm{i} = (1 - abs(smangles{i}(:,2)))*run_params.Dp_m(n(i))*1.75e-3;
-            Anorm_max{i} = sqrt(1 - (smangles{i}(:,2).^2));
-            Anorm_sph{i} = Anorm_max{i}/(pi*(9/16*1/AR(i))^(1/3));
+            Ap = run_params.Dp_m(n(i))*1.75e-3; % particle nominal area
+            A_eqsph = Ap*(9/16*1/AR(i))^(1/3);  % xsec area of equiv-volume sphere
+            A_rand = Ap*sqrt(1 - (pz_rand.^2));  % mean normal area of randomly oriented particles
+            Anormal{i} = sqrt(1 - (smangles{i}(:,2).^2))*Ap; % normal area
         end
+    else
+        Ap = run_params.Dp_m(n(i))^2/4*pi;  % particle nominal area
+        A_eqsph = Ap;   % xsec area of equiv-volume sphere
+        A_rand = Ap;  % mean normal area of randomly oriented particles
+        Anormal{i} = ones(length(smtracks{i}),1)*Ap;
     end
-    irrad{i} = Anorm{i}.*rad_level(smtracks{i}(:,2));
-    irrad_max{i} = Anorm_max{i}.*rad_level(smtracks{i}(:,2));
-    irrad_sph{i} = Anorm_sph{i}.*rad_level(smtracks{i}(:,2));
     irrad_depthonly{i} = rad_level(smtracks{i}(:,2));
+    irrad{i} = Anormal{i}.*irrad_depthonly{i};
+    irrad_max{i} = irrad{i}/Ap;
+    irrad_sph{i} = irrad{i}/A_eqsph;
+    irrad_rand{i} = irrad{i}/A_rand;
+    
+    irrad_depthonly_mean(i) = mean(irrad_depthonly{i},'omitnan');
     irrad_mean(i) = mean(irrad{i},'omitnan');
     irrad_max_mean(i) = mean(irrad_max{i},'omitnan');
     irrad_sph_mean(i) = mean(irrad_sph{i},'omitnan');
-    irrad_depthonly_mean(i) = mean(irrad_depthonly{i},'omitnan');
+    irrad_rand_mean(i) = mean(irrad_rand{i},'omitnan');    
 end
 
 % fprintf(['irradiation normalized by surface intensity: [m^-2]\n' ...
@@ -755,6 +778,14 @@ goodplot([4 3])
 % P = polyfit(Lm_fit,log(irrad_max_plan_mean),1);
 % Lm_vec = 0:0.01:0.4;
 % hold on; plot(Lm_vec, exp(P(2))*exp(Lm_vec*P(1)));
+
+figure;
+compare_plots(num2cell(Lm_fit), num2cell(irrad_rand_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{rand}}$'); %ylabel('$I_{norm,sph}$')
+axis([0.05 .45 0.1 1.4])
+legend(lstr,'location','northeastoutside')
+goodplot([5.5 4])
+
 
 % % ---------- experimental stuff below ------------ % %
 return
@@ -909,7 +940,8 @@ smtracks_turb = smtracks;
 q_idx = [4];%,8,9];
 r_up = cell(length(n),1); 
 t_lags = cell(length(n),1);
-c = parula(Nbins_wide);
+c = parula(Nbins_wide+1);
+c = c(1:end-1,:);
 labelstr = {'u_p','w_p','a_{x,p}','a_{z,p}'};
 
 for k = 1:length(n)
