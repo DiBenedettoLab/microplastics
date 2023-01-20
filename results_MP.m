@@ -685,7 +685,7 @@ l = compare_plots(mat2cell([pz_rng{5}(:,[1,4]), pz_rng{7}(:,[1 4])],Npdf,ones(1,
     mat2cell([pz_pdf{5}(:,[1 4]), pz_pdf{7}(:,[1 4])],Npdf,ones(1,4)), ...
     pdf_col([1 4 1 4]),{'+' '+' 'o' 'o'},[10 10 6 6],{'-' '-' '-' '-'});
 xlabel('$|p_z|$'); ylabel('PDF'); set(gca,'Yticklabel',[])
-legend(l,{'R20, deep', 'R20, shallow', 'D7, deep', 'D7, shallow'},'location','nw')
+legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','nw')
 goodplot([5 5])
 
 %% depth & orientation = irradiation
@@ -727,17 +727,21 @@ for i = 1:length(n)
         A_rand = Ap;  % mean normal area of randomly oriented particles
         Anormal{i} = ones(length(smtracks{i}),1)*Ap;
     end
-    irrad_depthonly{i} = rad_level(smtracks{i}(:,2));
+    irrad_depthonly{i} = rad_level(smtracks{i}(:,2)); % 
+    irrad_depthonly2{i} = rad_level(zprof{i}).*C{i}'; % 
     irrad{i} = Anormal{i}.*irrad_depthonly{i};
     irrad_max{i} = irrad{i}/Ap;
     irrad_sph{i} = irrad{i}/A_eqsph;
     irrad_rand{i} = irrad{i}/A_rand;
     
     irrad_depthonly_mean(i) = mean(irrad_depthonly{i},'omitnan');
+    irrad_depthonly2_mean(i) = sum(irrad_depthonly2{i},'omitnan')./sum(C{i});
     irrad_mean(i) = mean(irrad{i},'omitnan');
     irrad_max_mean(i) = mean(irrad_max{i},'omitnan');
     irrad_sph_mean(i) = mean(irrad_sph{i},'omitnan');
     irrad_rand_mean(i) = mean(irrad_rand{i},'omitnan');    
+
+    irrad_theor(i) = 1*Lz/(Lz+Lm_fit(i));
 end
 
 % fprintf(['irradiation normalized by surface intensity: [m^-2]\n' ...
@@ -764,25 +768,36 @@ end
 % xlabel('L_m [m]'); ylabel('I_{norm,max}')
 
 figure;
-compare_plots(num2cell(Lm_fit), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{sph}}$'); %ylabel('$I_{norm,sph}$')
-axis([0.05 .45 0.1 1.4])
+compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{sph}}$'); %ylabel('$I_{norm,sph}$')
+% axis([0.05 .45 0.1 1.4])
 legend(lstr,'location','northeastoutside')
 goodplot([5.5 4])
 
 figure;
-compare_plots(num2cell(Lm_fit), num2cell(irrad_depthonly_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m$ [m]'); ylabel('$I/I_0$')
+compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_depthonly_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
 % legend(lstr,'location','northeastoutside')
-goodplot([4 3])
-% P = polyfit(Lm_fit,log(irrad_max_plan_mean),1);
-% Lm_vec = 0:0.01:0.4;
-% hold on; plot(Lm_vec, exp(P(2))*exp(Lm_vec*P(1)));
+goodplot([5 4])
+P = polyfit(log(Lm_fit/Lz),log(irrad_depthonly_mean),1);
+Lm_vec = 0.4:0.01:2;
+hold on; plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
+plot(Lm_fit/Lz, irrad_theor, '*','color',ebar_gray);
 
 figure;
-compare_plots(num2cell(Lm_fit), num2cell(irrad_rand_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{rand}}$'); %ylabel('$I_{norm,sph}$')
-axis([0.05 .45 0.1 1.4])
+compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_depthonly2_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+% legend(lstr,'location','northeastoutside')
+goodplot([4 3])
+P2 = polyfit(log(Lm_fit/Lz),log(irrad_depthonly2_mean),1);
+Lm_vec = 0.4:0.01:2;
+hold on; plot(Lm_vec, exp(P2(2))*Lm_vec.^P2(1));
+
+figure;
+compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_rand_mean),mk_col,mk,mk_sz,ls2);
+xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{rand}}$'); %ylabel('$I_{norm,sph}$')
+% axis([0.05 .45 0.1 1.4])
+hold on; plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
 legend(lstr,'location','northeastoutside')
 goodplot([5.5 4])
 
