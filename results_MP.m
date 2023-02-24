@@ -4,7 +4,7 @@
 close all
 clear
 
-gdrive_path =  'H:\My Drive\';  % 'C:\Users\ljbak\My Drive\';   %  'G:\My Drive\';  % 
+gdrive_path =  'C:\Users\ljbak\My Drive\';   %  'H:\My Drive\';  % 'G:\My Drive\';  % 
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 n = [15,13,1:6]; %,16,14,7:12]; %  runs to include
@@ -255,14 +255,15 @@ goodplot([6 4])
 %% concentration
 
 C = cell(size(n));
+C_count = cell(size(n));
 w_C = cell(size(n));
 zprof = cell(size(n));
 zprof_k = cell(size(n)); % z normalized by dom wavenumber
 scaleflag = 0; % code not compatible with scaleflag=1!
 for i = 1:length(n)
     % mean concentration
-    [~, zprof{i}, C{i}] = condition_vars(ones(size(smtracks{i}(:,2))),smtracks{i}(:,2),Nbins,scaleflag,binedg); 
-    C{i} = C{i}/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
+    [~, zprof{i}, C_count{i}] = condition_vars(ones(size(smtracks{i}(:,2))),smtracks{i}(:,2),Nbins,scaleflag,binedg); 
+    C{i} = C_count{i}/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
     zprof_k{i} = zprof{i}*kdom;
     
     % uncertainty
@@ -298,13 +299,19 @@ xlabel('$C/C_0$'); ylabel('$z$ [m]'); legend(l,lstr,'location','se')
 goodplot([6 5])
 
 %% fit and theoretical profile
-dz = [0.07*ones(size(n/2)), 0.055*ones(size(n/2))]; % 0.055; % 
+dz = [0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % 
 Lm_fit = zeros(size(n));
 C0 = zeros(size(n));
 for i = 1:length(n)
     P = polyfit((zprof{i}+dz(i)),log(Cnorm{i}),1);
     Lm_fit(i) = 1/P(1);
     C0(i) = exp(P(2));
+end
+
+C0_count = zeros(size(n));
+for i = 1:length(n)
+    P = polyfit((zprof{i}+dz(i)),log(C_count{i}),1);
+    C0_count(i) = exp(P(2));
 end
 
 % Lm vs Wb
@@ -688,12 +695,96 @@ xlabel('$|p_z|$'); ylabel('PDF'); set(gca,'Yticklabel',[])
 legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','nw')
 goodplot([5 5])
 
+
+%% orient conditioned on asc and desc
+if 0  % don't run this section
+    asc_idx = cell(size(n));
+    desc_idx = cell(size(n));
+    for i = 1:length(n)
+        asc_idx{i} = smtracks{i}(:,4) > 0;
+        desc_idx{i} = smtracks{i}(:,4) < 0;
+    end
+    
+    % orientation pdfs separated by depth  
+    Npdf = 20; 
+    Npdfs = 1.5*Npdf+1;
+    
+    for i = 1:length(n)
+        if nonsphere(i)
+            for j = 1:Nbins_wide
+                idx = smtracks{i}(:,2) >= z_bins_wide_edg(j) & smtracks{i}(:,2) < z_bins_wide_edg(j+1);
+                [px_pdf_asc{i}(:,j), px_rng_asc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & asc_idx{i},1)),Npdf,0,[0 1]);
+                [py_pdf_asc{i}(:,j), py_rng_asc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & asc_idx{i},3)),Npdf,0,[0 1]);
+                [pz_pdf_asc{i}(:,j), pz_rng_asc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & asc_idx{i},2)),Npdf,0,[0 1]);
+                [pzs_pdf_asc{i}(:,j), pzs_rng_asc{i}(:,j)] = pdf_var(smangles{i}(idx & asc_idx{i},2),Npdfs,0,[-1 1]);
+    
+                [px_pdf_desc{i}(:,j), px_rng_desc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & desc_idx{i},1)),Npdf,0,[0 1]);
+                [py_pdf_desc{i}(:,j), py_rng_desc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & desc_idx{i},3)),Npdf,0,[0 1]);
+                [pz_pdf_desc{i}(:,j), pz_rng_desc{i}(:,j)] = pdf_var(abs(smangles{i}(idx & desc_idx{i},2)),Npdf,0,[0 1]);
+                [pzs_pdf_desc{i}(:,j), pzs_rng_desc{i}(:,j)] = pdf_var(smangles{i}(idx & desc_idx{i},2),Npdfs,0,[-1 1]);
+            end
+        end
+    end
+    
+    for i = 1:length(n)
+        if nonsphere(i)
+            figure;
+            subplot(141);
+            l = compare_plots(mat2cell(px_rng_asc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(px_pdf_asc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_x|$'); ylabel('PDF')
+            subplot(142);
+            compare_plots(mat2cell(py_rng_asc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(py_pdf_asc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_y|$')
+            subplot(143);
+            compare_plots(mat2cell(pz_rng_asc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(pz_pdf_asc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_z|$')
+            subplot(144);
+            compare_plots(mat2cell(pzs_rng_asc{i},Npdfs,ones(1,Nbins_wide)), ...
+                mat2cell(pzs_pdf_asc{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$p_z$')
+            sgtitle([run_params.ParticleType{n(i)} ', ascending'])
+            goodplot([6 4])
+        end
+    end
+    
+    for i = 1:length(n)
+        if nonsphere(i)
+            figure;
+            subplot(141);
+            l = compare_plots(mat2cell(px_rng_desc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(px_pdf_desc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_x|$'); ylabel('PDF')
+            subplot(142);
+            compare_plots(mat2cell(py_rng_desc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(py_pdf_desc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_y|$')
+            subplot(143);
+            compare_plots(mat2cell(pz_rng_desc{i},Npdf,ones(1,Nbins_wide)), ...
+                mat2cell(pz_pdf_desc{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$|p_z|$')
+            subplot(144);
+            compare_plots(mat2cell(pzs_rng_desc{i},Npdfs,ones(1,Nbins_wide)), ...
+                mat2cell(pzs_pdf_desc{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            xlabel('$p_z$')
+            sgtitle([run_params.ParticleType{n(i)} ', descending'])
+            goodplot([6 4])
+        end
+    end
+end
+
+
 %% depth & orientation = irradiation
 
 % radiation as a function of depth 
-Lz = .2; % light decay lengthscale [m]  (ARBITRARY)
-rad_level = @(z) exp(z/Lz);   % normalized by surface intensity
+lambda = .2; %.2; % light decay lengthscale [m]  %% can't compare with expt data if lambda < wave height due to lack of samples near surface
+I0 = 1;  % surface light intensity
+rad_level = @(z) I0*exp(z/lambda);   % radiation level as function of depth
 % rad_level = @(z) 1;
+
+z_wave = -0.03; % wave layer depth
 
 Anormal = cell(size(n));      % particle planar area normal to vertical, not normalized [m^2]
 irrad = cell(size(n));      % irradiation [W]
@@ -701,10 +792,12 @@ irrad_max = cell(size(n));  % irradiation on particle normalized by its max plan
 irrad_sph = cell(size(n));  % irradiation on particle normalized by its equiv sphere planar area and surface light level
 irrad_rand = cell(size(n)); 
 irrad_depthonly = cell(size(n)); % irradiation on particle only considering depth
+irrad_depthonly_extrap = cell(size(n));
 irrad_mean = zeros(size(n));
 irrad_max_mean = zeros(size(n));
 irrad_sph_mean = zeros(size(n));
 irrad_depthonly_mean = zeros(size(n));
+irrad_depthonly_extrap_mean = zeros(size(n));
 irrad_rand_mean = zeros(size(n));
 
 for i = 1:length(n)   
@@ -727,21 +820,27 @@ for i = 1:length(n)
         A_rand = Ap;  % mean normal area of randomly oriented particles
         Anormal{i} = ones(length(smtracks{i}),1)*Ap;
     end
-    irrad_depthonly{i} = rad_level(smtracks{i}(:,2)); % 
-    irrad_depthonly2{i} = rad_level(zprof{i}).*C{i}'; % 
-    irrad{i} = Anormal{i}.*irrad_depthonly{i};
+    irrad_theor(i) = I0*lambda/(lambda+Lm_fit(i))*exp(z_wave/lambda);   
+    irrad_theor_depthlim(i) = I0*lambda/(lambda+Lm_fit(i))*(1-exp(zprof{i}(1)/lambda)); % not correct, idk what's wrong
+
+    below_waves_idx = true(size(smtracks{i}(:,2)));  % smtracks{i}(:,2) < -dz(i);
+    irrad_depthonly{i} = rad_level(smtracks{i}(below_waves_idx,2)); % 
+    irrad{i} = Anormal{i}(below_waves_idx).*irrad_depthonly{i};
+%     irrad_depthonly2{i} = rad_level(zprof{i}).*C{i}'; % 
     irrad_max{i} = irrad{i}/Ap;
     irrad_sph{i} = irrad{i}/A_eqsph;
     irrad_rand{i} = irrad{i}/A_rand;
     
+    I_tot_extrap = C0_count(i)*Lm_fit(i)*irrad_theor(i)*exp(zprof{i}(1)*(lambda+Lm_fit(i))/(lambda*Lm_fit(i)));
+    N_tot_extrap = C0_count(i)*Lm_fit(i)*exp(zprof{i}(1)/Lm_fit(i));
     irrad_depthonly_mean(i) = mean(irrad_depthonly{i},'omitnan');
-    irrad_depthonly2_mean(i) = sum(irrad_depthonly2{i},'omitnan')./sum(C{i});
+%     irrad_depthonly2_mean(i) = sum(irrad_depthonly2{i},'omitnan')./sum(C{i});
+    irrad_depthonly_extrap_mean(i) = (sum(irrad_depthonly{i}) + I_tot_extrap) / ...
+        (length(irrad_depthonly{i}) + N_tot_extrap);
     irrad_mean(i) = mean(irrad{i},'omitnan');
     irrad_max_mean(i) = mean(irrad_max{i},'omitnan');
     irrad_sph_mean(i) = mean(irrad_sph{i},'omitnan');
     irrad_rand_mean(i) = mean(irrad_rand{i},'omitnan');    
-
-    irrad_theor(i) = 1*Lz/(Lz+Lm_fit(i));
 end
 
 % fprintf(['irradiation normalized by surface intensity: [m^-2]\n' ...
@@ -767,39 +866,42 @@ end
 % compare_plots(num2cell(Lm_fit), num2cell(irrad_max_mean),mk_col,mk,mk_sz,ls2);
 % xlabel('L_m [m]'); ylabel('I_{norm,max}')
 
-figure;
-compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{sph}}$'); %ylabel('$I_{norm,sph}$')
-% axis([0.05 .45 0.1 1.4])
-legend(lstr,'location','northeastoutside')
-goodplot([5.5 4])
+% figure;
+% compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_sph_mean),mk_col,mk,mk_sz,ls2);
+% xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{sph}}$'); %ylabel('$I_{norm,sph}$')
+% % axis([0.05 .45 0.1 1.4])
+% legend(lstr,'location','northeastoutside')
+% goodplot([5.5 4])
 
 figure;
-compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_depthonly_mean),mk_col,mk,mk_sz,ls2);
+compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_depthonly_extrap_mean),mk_col,mk,mk_sz,ls2); hold on; 
 xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
 % legend(lstr,'location','northeastoutside')
 goodplot([5 4])
-P = polyfit(log(Lm_fit/Lz),log(irrad_depthonly_mean),1);
-Lm_vec = 0.4:0.01:2;
-hold on; plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
-plot(Lm_fit/Lz, irrad_theor, '*','color',ebar_gray);
+% P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
+% Lm_vec = 0.4:0.01:2;
+% plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
+plot(Lm_fit/lambda, irrad_theor, '*','color',ebar_gray);
+title('Extrapolated')
 
-figure;
-compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_depthonly2_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+% figure;
+% compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_depthonly_mean),mk_col,mk,mk_sz,ls2); hold on; 
+% xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+% % legend(lstr,'location','northeastoutside')
+% goodplot([4 3])
+% % P2 = polyfit(log(Lm_fit/lambda),log(irrad_depthonly2_mean),1);
+% % Lm_vec = 0.4:0.01:2;
+% % plot(Lm_vec, exp(P2(2))*Lm_vec.^P2(1));
+% plot(Lm_fit/lambda, irrad_theor_depthlim, '*','color',ebar_gray)
+% title('Depth-limited')
+
+% figure;
+% compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_rand_mean),mk_col,mk,mk_sz,ls2);
+% xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{rand}}$'); %ylabel('$I_{norm,sph}$')
+% % axis([0.05 .45 0.1 1.4])
+% hold on; plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
 % legend(lstr,'location','northeastoutside')
-goodplot([4 3])
-P2 = polyfit(log(Lm_fit/Lz),log(irrad_depthonly2_mean),1);
-Lm_vec = 0.4:0.01:2;
-hold on; plot(Lm_vec, exp(P2(2))*Lm_vec.^P2(1));
-
-figure;
-compare_plots(num2cell(Lm_fit/Lz), num2cell(irrad_rand_mean),mk_col,mk,mk_sz,ls2);
-xlabel('$L_m/\lambda$ [m]'); ylabel('$\frac{I A_{norm}}{I_0 A_{rand}}$'); %ylabel('$I_{norm,sph}$')
-% axis([0.05 .45 0.1 1.4])
-hold on; plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
-legend(lstr,'location','northeastoutside')
-goodplot([5.5 4])
+% goodplot([5.5 4])
 
 
 % % ---------- experimental stuff below ------------ % %
