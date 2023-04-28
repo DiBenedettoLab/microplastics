@@ -21,6 +21,7 @@ nonsphere = zeros(size(n));
 for i = 1:length(n)
     nonsphere(i) = strncmp(run_params.ParticleType{n(i)},'d',1) || strncmp(run_params.ParticleType{n(i)},'r',1);
 end
+nonsphere = logical(nonsphere);
 
 smtracks = cell(size(n));
 smtracklength = cell(size(n));
@@ -299,7 +300,7 @@ xlabel('$C/C_0$'); ylabel('$z$ [m]'); legend(l,lstr,'location','se')
 goodplot([6 5])
 
 %% fit and theoretical profile
-dz = [0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % 
+dz = 0*[0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % zeros(1,8); %
 Lm_fit = zeros(size(n));
 C0 = zeros(size(n));
 for i = 1:length(n)
@@ -359,6 +360,56 @@ fprintf('C0 = %2.1f, %2.1f, %2.1f, %2.1f, %2.1f, %2.1f, %2.1f, %2.1f\n',C0)
 % figure; plot(C_us, zprof{1}, 'b.', C_ds, zprof{1}, 'r.'); xlabel('C'); ylabel('z'); legend('upstream','downstream','location','se')
 
 
+%% theoretical concentration profile, accounting for bottom wall
+% fit Lm
+dz = [0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % zeros(1,8); %
+idx_fit = zeros(size(dz));
+for i = 1:length(n)
+    [~,idx_fit(i)] = min(abs(zprof{i} - -dz(i)));
+end
+Lm_fit = zeros(size(n));
+C0 = zeros(size(n));
+for i = 1:length(n)
+    P = polyfit((zprof{i}+dz(i)),log(Cnorm{i}),1);
+    Lm_fit(i) = 1/P(1);
+    C0(i) = exp(P(2));
+end
+
+C0_count = zeros(size(n));
+for i = 1:length(n)
+    P = polyfit((zprof{i}+dz(i)),log(C_count{i}),1);
+    C0_count(i) = exp(P(2));
+end
+
+
+% theoretical C(z)
+C_theor = cell(size(n));
+H = 0.6;
+z_theor = linspace(-H,0,30);
+Lm_fit_test = 0.2;
+for i = 1:length(n)
+    C_C0_theor{i} = (1 + z_theor/(H-Lm_fit(i))).*exp(z_theor/Lm_fit(i));
+%     if any(C_C0_theor{i}<0)  % if corrected profile goes negative,
+% %     assumptions are incorrect, so revert to exponential decay (but: all
+% %     are negative)
+%         C_C0_theor{i} = exp(z_theor/Lm_fit(i)); 
+%     end
+end
+idx = 1:3;
+figure; compare_plots(C_C0_theor(idx), {z_theor z_theor z_theor}, mk_col(idx), {'none' 'none' 'none'} , mk_sz(idx), ls(idx));
+hold on; l = compare_plots(C_C0(idx), zprof(idx), mk_col(idx), mk(idx), mk_sz(idx), ls(idx), ...
+    w_C_C0(idx), num2cell(nan(size(n(idx)))), eb_col(idx), num2cell(nan(size(n(idx)))));
+legend(l,lstr,'location','se')
+hold on; l2 = plot(exp((-H:.01:0)/Lm_fit(idx(1))),-H:.01:0,'--','linewidth',2,'color','g');
+plot(exp((-H:.01:0)/Lm_fit(idx(2))),-H:.01:0,'--','linewidth',2,'color','g');
+if length(idx) > 2
+    plot(exp((-H:.01:0)/Lm_fit(idx(3))),-H:.01:0,'--','linewidth',2,'color','g');
+end
+% ylim([-H 0]); xlim([0 1.2])
+xlabel('$C/C_0$'); ylabel('$z$ [m]'); % legend([l;l2],[lstr,{'Fit'}],'location','se')
+goodplot([6 5])
+
+
 %% vertical flux
 % net flux
 fluxz = cell(size(n));
@@ -388,7 +439,7 @@ eps_p_flux = cell(size(n));
 for i = 1:length(n)
     eps_p_flux{i} = (WC{i} - fluxz{i})./dCdz{i};
 end
-A0 = 1.5*[1 2 3]*1e-2*0.4*5e-2;
+A0_vec = 1.5*[1 2 3]*1e-2*0.4*5e-2;
 
 % % plot flux balance components
 % figure; l = compare_plots(WC,zprof_k,mk_col,mk,mk_sz,ls);
@@ -400,9 +451,9 @@ A0 = 1.5*[1 2 3]*1e-2*0.4*5e-2;
 
 % plot diffusivity
 figure; l = compare_plots(eps_p_flux,zprof_k,mk_col,mk,mk_sz,ls);
-hold on; line([A0(1) A0(1)],binedg*kdom,'color','k','linestyle','--'); 
-line([A0(2) A0(2)],binedg*kdom,'color','k','linestyle','--'); 
-line([A0(3) A0(3)],binedg*kdom,'color','k','linestyle','--'); 
+hold on; line([A0_vec(1) A0_vec(1)],binedg*kdom,'color','k','linestyle','--'); 
+line([A0_vec(2) A0_vec(2)],binedg*kdom,'color','k','linestyle','--'); 
+line([A0_vec(3) A0_vec(3)],binedg*kdom,'color','k','linestyle','--'); 
 xlim([-.01 .02]); xlabel('$A(z)$ [m$^{2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([4 4])
 
 
@@ -904,8 +955,280 @@ title('Extrapolated')
 % goodplot([5.5 4])
 
 
-% % ---------- experimental stuff below ------------ % %
+% random walk model
+addpath([gdrive_path 'MATLAB\model'])
+
+irrad_rw = zeros(size(n));
+nu_ts = Lm_fit.*run_params.riseVel_m_s(n)';
+for i = 1:length(n)
+    irrad_rw(i) = random_walk_irrad(run_params.riseVel_m_s(i), nu_ts(i), lambda, Lm_fit(i), H);
+end
+
+figure;
+compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_depthonly_extrap_mean),mk_col,mk,mk_sz,ls2); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+goodplot([5 4])
+plot(Lm_fit/lambda, irrad_theor, '*','color',ebar_gray);
+
+compare_plots(num2cell(Lm_fit/lambda), num2cell(irrad_rw),mk_col,mk,mk_sz,ls2); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+goodplot([5 4])
+plot(Lm_fit/lambda, irrad_theor, '*','color',ebar_gray);
+title('Random walk')
+
+
+
+%% phase averaging
+
+if ~exist('phs-ztilde.mat','file')
+    % wave phase
+    
+    % function to calculate phase at depth from phase at surface
+    phs_depth = @(phs_surf, z) phs_surf;  % currently assuming phase at depth = phase at surface
+    
+    phs_tracks = cell(size(n));
+    for i = 1:length(n)
+        % load spatial phase data (from surface elevation)
+        data = load(sprintf('C:/Users/ljbak/Documents/surf elev data/5 separated dewarped runs/run_%i_phase.mat',n(i)));
+        x_phs = linspace(min(smtracks{i}(:,1)), max(smtracks{i}(:,1)), size(data.phs,1));
+        
+        % interpolate phase at each particle location
+        phs_tracks{i} = zeros(length(smtracks{i}),1);
+        for j = 1:max(smtracks{i}(:,7))  % loop over frames
+            idx = logical(smtracks{i}(:,7) == j);   % get particles at frame j
+    
+            phs_tracks{i}(idx) = interp1(x_phs, data.phs(:,j), smtracks{i}(idx,1));  % interpolate phase at particle x coord
+            phs_tracks{i}(idx) = phs_depth(phs_tracks{i}(idx), smtracks{i}(idx,2));  % correct phase for particle depth
+        end
+    end
+    
+    % free surface elev
+    ztilde = cell(size(n));
+    for i = 1:length(n)
+        load(sprintf('run_%i_dewarped.mat',n(i)));
+        ztilde{i} = zeros(length(smtracks{i}),1);
+        for j = 1:size(smtracks{i},1)
+            offset = interp1(surf_dewarp_x(:,smtracks{i}(j,7)), surf_dewarp_z(:,smtracks{i}(j,7)), smtracks{i}(j,1));
+            ztilde{i}(j) = smtracks{i}(j,2) - offset;
+        end
+    end
+    
+    save('phs-ztilde.mat','phs_tracks','ztilde');
+else
+    load('phs-ztilde.mat')
+end
+
+%% condition orientation on wave phase 
+% PDFs
+Nbins_phs = 7;
+phs_bins_edg = linspace(0,2*pi,Nbins_phs+1);
+
+px_pdf_phs = cell(size(n));
+py_pdf_phs = cell(size(n));
+pz_pdf_phs = cell(size(n));
+pzs_pdf_phs = cell(size(n));
+px_rng_phs = cell(size(n));
+py_rng_phs = cell(size(n));
+pz_rng_phs = cell(size(n));
+pzs_rng_phs = cell(size(n));
+
+Npdf = 20; 
+Npdfs = 1.5*Npdf+1;
+
+for i = 1:length(n)
+    if nonsphere(i)
+        px_pdf_phs{i} = zeros(Npdf,Nbins_phs);
+        py_pdf_phs{i} = zeros(Npdf,Nbins_phs);
+        pz_pdf_phs{i} = zeros(Npdf,Nbins_phs);
+        pzs_pdf_phs{i} = zeros(Npdfs,Nbins_phs);
+        px_rng_phs{i} = zeros(Npdf,Nbins_phs);
+        py_rng_phs{i} = zeros(Npdf,Nbins_phs);
+        pz_rng_phs{i} = zeros(Npdf,Nbins_phs);
+        pzs_rng_phs{i} = zeros(Npdfs,Nbins_phs);
+    
+        for j = 1:Nbins_phs
+            idx = phs_tracks{i} >= phs_bins_edg(j) & phs_tracks{i} < phs_bins_edg(j+1);% & smtracks{i}(:,2) < -.2;
+            [px_pdf_phs{i}(:,j), px_rng_phs{i}(:,j)] = pdf_var(abs(smangles{i}(idx,1)),Npdf,0,[0 1]);
+            [py_pdf_phs{i}(:,j), py_rng_phs{i}(:,j)] = pdf_var(abs(smangles{i}(idx,3)),Npdf,0,[0 1]);
+            [pz_pdf_phs{i}(:,j), pz_rng_phs{i}(:,j)] = pdf_var(abs(smangles{i}(idx,2)),Npdf,0,[0 1]);
+            [pzs_pdf_phs{i}(:,j), pzs_rng_phs{i}(:,j)] = pdf_var(smangles{i}(idx,2),Npdfs,0,[-1 1]);
+        end
+    end
+end
+
+% plot params
+pdf_col = mat2cell(parula(Nbins_phs+1),ones(1,Nbins_phs+1),3);
+pdf_col = pdf_col(1:end-1);
+pdf_mk = {'.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.'};
+pdf_mk_sz = 10*ones(Nbins_phs,1);
+pdf_ls = {'-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-'};
+
+% % plot orientation pdfs 
+% for i = 1:length(n)
+%     if nonsphere(i)
+%         figure;
+%         subplot(141);
+%         l = compare_plots(mat2cell(px_rng_phs{i},Npdf,ones(1,Nbins_phs)), ...
+%             mat2cell(px_pdf_phs{i},Npdf,ones(1,Nbins_phs)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+%         xlabel('$|p_x|$'); ylabel('PDF')
+%         subplot(142);
+%         compare_plots(mat2cell(py_rng_phs{i},Npdf,ones(1,Nbins_phs)), ...
+%             mat2cell(py_pdf_phs{i},Npdf,ones(1,Nbins_phs)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+%         xlabel('$|p_y|$')
+%         subplot(143);
+%         compare_plots(mat2cell(pz_rng_phs{i},Npdf,ones(1,Nbins_phs)), ...
+%             mat2cell(pz_pdf_phs{i},Npdf,ones(1,Nbins_phs)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+%         xlabel('$|p_z|$')
+%         subplot(144);
+%         compare_plots(mat2cell(pzs_rng_phs{i},Npdfs,ones(1,Nbins_phs)), ...
+%             mat2cell(pzs_pdf_phs{i},Npdfs,ones(1,Nbins_phs)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+%         xlabel('$p_z$')
+%         sgtitle(run_params.ParticleType{n(i)})
+%         goodplot([6 4])
+%     end
+% end
+
+% plot pz pdfs only
+figure;
+sp_count = 0;
+for i = 1:length(n)
+    if nonsphere(i)        
+        sp_count = sp_count + 1;
+        subplot(1,sum(nonsphere),sp_count);
+        l = compare_plots(mat2cell(pz_rng_phs{i},Npdf,ones(1,Nbins_phs)), ...
+            mat2cell(pz_pdf_phs{i},Npdf,ones(1,Nbins_phs)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+        xlabel('$|p_z|$')        
+        title(upper(run_params.ParticleType{n(i)})) 
+        ylim([0 5])
+        if sp_count > 1
+            set(gca,'yticklabel','')
+        else
+            ylabel('PDF')
+        end
+    end
+end
+goodplot([10 4])
+
+
+%% turb vs wave dominance
+% orbital velocity
+wvnum = 14; % wave number from sine fit
+wvlen = 2*pi/wvnum; % wavelength
+amp = 0.01; % amplitude from sine fit
+T = 0.3; % period from wave gauge spectrum
+omega = 2*pi/T; % angular frequency
+u_wave = omega*amp/tanh(wvlen*H);
+
+
+%% stdev of pz vs depth
+pz_stdev = cell(size(n));
+for i = 1:length(n)
+    if nonsphere(i)
+        pzmean{i} = condition_vars(abs(smangles{i}(:,2)),smtracks{i}(:,2),Nbins,scaleflag,binedg); 
+        pzfluct = abs(smangles{i}(:,2)) - interp1(zprof{i},pzmean{i},smtracks{i}(:,2));
+        [pz_stdev{i}, ~] = condition_vars(pzfluct.^2,smtracks{i}(:,2),Nbins,scaleflag,binedg);
+    end
+end
+figure; l=compare_plots(pz_stdev(nonsphere),zprof(nonsphere),mk_col(nonsphere),mk(nonsphere),mk_sz(nonsphere),ls(nonsphere));
+xlabel('stdev($p_z$)'); ylabel('$z$ [m]'); legend(l,lstr(nonsphere),'location','se');
+goodplot([5 4])
+
+
+%% concentration as function of wave phase
+Nbins_phs = 6;
+phs_bins_edg = linspace(0,2*pi,Nbins_phs+1);
+Nbins2 = 20;
+
+lstr_phs = cell(Nbins_phs,1);
+pdf_col = mat2cell(parula(Nbins_phs+1),ones(1,Nbins_phs+1),3);
+pdf_col = pdf_col(1:end-1);
+pdf_mk = {'.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.' ...
+    '.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.' '.'};
+pdf_mk_sz = 10*ones(Nbins_phs,1);
+pdf_ls = {'-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-' ...
+    '-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-' '-'};
+
+% (profiles)
+Cnorm_phs = cell(size(n));
+zprof_phs = cell(size(n));
+for i = 1:length(n)
+    Cnorm_phs{i} = cell(Nbins_phs,1); %zeros(Nbins,Nbins_phs);
+    zprof_phs{i} = cell(Nbins_phs,1);
+    for j = 1:Nbins_phs
+        idx = phs_tracks{i} >= phs_bins_edg(j) & phs_tracks{i} < phs_bins_edg(j+1);
+        lstr_phs{j} = num2str(round(mean([phs_bins_edg(j) phs_bins_edg(j+1)]),2));
+        [~, zprof_phs{i}{j}, C_count_phs] = condition_vars(ones(size(smtracks{i}(idx,2))),smtracks{i}(idx,2),Nbins2,scaleflag,binedg); 
+        C_phs = C_count_phs/(ROI_area*diff(zprof_phs{i}{j}(1:2))*Nt(i));
+
+        % scaling by uniform concentration
+        if scaleflag
+            normval = length(smtracks{i}(:,2))*real(diff(logspace(log10(binedg(1)),log10(binedg(2)),Nbins2+1)'))/diff(binedg)/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
+        else
+            normval = length(smtracks{i}(:,2))/Nbins2/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
+        end
+        Cnorm_phs{i}{j} = C_phs./normval;
+    end 
+end
+
+% plot
+figure;
+i = 6;
+l = compare_plots(Cnorm_phs{i}, zprof_phs{i}, pdf_col, pdf_mk, pdf_mk_sz, pdf_ls);
+xlabel('$C$'); ylabel('z [m]'); legend(lstr_phs,'location','se')
+title(lstr{i});
+goodplot([5 4])
+
+%% depth-integrated concentration vs phase
+Cnorm_phs_int = cell(length(n),1);
+for i = 1:length(n)
+    Cnorm_phs_int{i} = zeros(Nbins_phs,1);
+    for j = 1:Nbins_phs   
+        Cnorm_phs_int{i}(j) = trapz(zprof_phs{i}{j},Cnorm_phs{i}{j});
+    end
+end
+figure; l=compare_plots({phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1), phs_bins_edg(1:end-1)}, ...
+    Cnorm_phs_int,mk_col,mk,mk_sz, ls);
+xlabel('$\theta$ [rad]'); ylabel('integrated $C/C_0$'); legend(lstr,'location','northeastoutside')
+goodplot([5 4])
+
+%% condition C on z-tilde
+binedg(2) = -0.03;
+C_tilde = cell(size(n));
+C_count_tilde = cell(size(n));
+zprof_tilde = cell(size(n));
+zprof_k = cell(size(n)); % z normalized by dom wavenumber
+scaleflag = 0; % code not compatible with scaleflag=1!
+for i = 1:length(n)
+    % mean concentration
+    [~, zprof_tilde{i}, C_count_tilde{i}] = condition_vars(ones(size(smtracks{i}(:,2))),ztilde{i},Nbins2,scaleflag,binedg); 
+    C_tilde{i} = C_count_tilde{i}/(ROI_area*diff(zprof_tilde{i}(1:2))*Nt(i));
+
+    % scaling by uniform concentration
+    if scaleflag
+        normval = length(smtracks{i}(:,2))*real(diff(logspace(log10(binedg(1)),log10(binedg(2)),Nbins2+1)'))/diff(binedg)/(ROI_area*diff(zprof_tilde{i}(1:2))*Nt(i));
+    else
+        normval = length(smtracks{i}(:,2))/Nbins2/(ROI_area*diff(zprof_tilde{i}(1:2))*Nt(i));
+    end
+    Cnorm_tilde{i} = C_tilde{i}./normval;
+    Cnorm_tilde{i}(Cnorm_tilde{i}==0) = 1e-4;
+end
+
+% plot concentration
+figure;
+l = compare_plots(Cnorm_tilde, zprof_tilde, mk_col, mk, mk_sz, ls, ...
+    num2cell(nan(size(n))), num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% set(gca,'yscale','log'); 
+axis([0 4 prof_zlim])
+xlabel('$C/C_0$'); ylabel('$z$ [m]'); legend(l,lstr,'location','se')
+goodplot([6 5])
+
+
+%% ---------- experimental stuff below ------------ % %
 return
+
+
+
+
 
 
 
