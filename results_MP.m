@@ -8,7 +8,8 @@ gdrive_path =  'C:\Users\ljbak\My Drive\';   %  'H:\My Drive\';  % 'G:\My Drive\
 addpath([gdrive_path 'MATLAB\fm-toolbox'])
 expt_string = '220613';  % expt set
 n = [15,13,1:6,16,14,7:12]; %  runs to include
-% n = [16,14,7:12];
+runs_matched = [2 5 8 11 13 14]';  % runs with matching St (n3, r10, d7 runs)
+n_triplet = find(any(n==runs_matched, 1));
 
 % load experiment params
 warning off
@@ -303,7 +304,8 @@ zprof_k = cell(size(n)); % z normalized by dom wavenumber
 scaleflag = 0; % code not compatible with scaleflag=1!
 for i = 1:length(n)
     % mean concentration
-    [~, zprof{i}, C_count{i}] = condition_vars(ones(size(smtracks{i}(:,2))),smtracks{i}(:,2),Nbins,scaleflag,binedg); 
+    [~, zprof{i}, C_count{i}] = condition_vars(ones(size(ztilde{i})),ztilde{i},Nbins,scaleflag,[-.3 0]);
+%     [~, zprof{i}, C_count{i}] = condition_vars(ones(size(smtracks{i}(:,2))),smtracks{i}(:,2),Nbins,scaleflag,[-.4 0]); %binedg);
     C{i} = C_count{i}/(ROI_area*diff(zprof{i}(1:2))*Nt(i));
     zprof_k{i} = zprof{i}*kdom;
     
@@ -340,13 +342,16 @@ xlabel('$C/C_0$'); ylabel('$z$ [m]'); legend(l,lstr,'location','se')
 goodplot([6 5])
 
 %% fit and theoretical profile
-dz = 0*[0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % zeros(1,8); %
+dz = 1*[0.07*ones(1,8), 0.055*ones(1,8)]; % 0.055; % zeros(1,8); %
 Lm_fit = zeros(size(n));
 C0 = zeros(size(n));
-for i = 1:length(n)
-    P = polyfit((zprof{i}+dz(i)),log(Cnorm{i}),1);
+figure;
+for i = length(n):-1:1
+    idx = zprof{i} < -dz(i) & C_count{i}' > 0;  % remove wave layer and bottom of ROI
+    P = polyfit((zprof{i}(idx)+dz(i)),log(Cnorm{i}(idx)),1);
     Lm_fit(i) = 1/P(1);
     C0(i) = exp(P(2));
+    plot(log(Cnorm{i}(idx)),(zprof{i}(idx)+dz(i)),'-'); hold on; 
 end
 
 C0_count = zeros(size(n));
@@ -356,14 +361,14 @@ for i = 1:length(n)
     C0_count(i) = exp(P(2));
 end
 
-% Lm vs Wb
-figure; plot(run_params.riseVel_m_s(n),Lm_fit,'+')
-xlabel('W_b [m/s]'); ylabel('L_m [m]')
-
-% use fit Lm and measured rise vel to estimate diffusivity
-Lm_Wb = Lm_fit.*run_params.riseVel_m_s(n)';
-figure; plot(run_params.riseVel_m_s(n),Lm_Wb,'+')
-xlabel('W_b [m/s]'); ylabel('L_m*W_b [m^2/s]'); axis([0.015 0.06 2e-3 12e-3])
+% % Lm vs Wb
+% figure; plot(run_params.riseVel_m_s(n),Lm_fit,'+')
+% xlabel('W_b [m/s]'); ylabel('L_m [m]')
+% 
+% % use fit Lm and measured rise vel to estimate diffusivity
+% Lm_Wb = Lm_fit.*run_params.riseVel_m_s(n)';
+% figure; plot(run_params.riseVel_m_s(n),Lm_Wb,'+')
+% xlabel('W_b [m/s]'); ylabel('L_m*W_b [m^2/s]'); axis([0.015 0.06 2e-3 12e-3])
 
 % theoretical Lm
 A0 = 1.5*ut*0.4*Hs;
@@ -386,6 +391,7 @@ for i = 1:length(n)
 end
 figure; l = compare_plots(C_C0, z_Lm, mk_col, mk, mk_sz, ls, ...
     w_C_C0, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+set(gca, 'Children', flipud(get(gca, 'Children')) )
 hold on; l2 = plot(exp(-8:.1:0),-8:.1:0,'k--','linewidth',2);
 ylim([-3 0]); xlim([0 2])
 xlabel('$C/C_0$'); ylabel('$(z-\Delta z)/L_m$'); legend([l;l2],[lstr,{'Fit'}],'location','se')
@@ -775,11 +781,11 @@ goodplot([5 5])
 
 % all depths; compare to random orient distrib
 figure;
-l = compare_plots(mat2cell([pz_rng{5}, 1-pz_rng{7}, pz_rng{7}(:,1)],Npdf,ones(1,9)), ...
-    mat2cell([pz_pdf{5}, pz_pdf{7}, ones(Npdf,1)],Npdf,ones(1,9)), ...
-    [pdf_col; pdf_col; {[0 0 0]}],{'+' '+' '+' '+' 'o' 'o' 'o' 'o' 'none'},[10 10 10 10 6 6 6 6 1],{'-' '-' '-' '-' '-' '-' '-' '-' '-'});
-xlabel('$|p_z|$'); ylabel('PDF'); %set(gca,'Yticklabel',[])
-% legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','nw')
+l = compare_plots(mat2cell([pz_rng{4}(:,[1 end]), 1-pz_rng{7}(:,[1 end]), pz_rng{7}(:,1)],Npdf,ones(1,5)), ...
+    mat2cell([pz_pdf{4}(:,[1 end]), pz_pdf{7}(:,[1 end]), ones(Npdf,1)],Npdf,ones(1,5)), ...
+    [pdf_col([1 end],:); pdf_col([1 end],:); {[0 0 0]}],{'+' '+' 'o' 'o' 'none'},[10 10 6 6 1],{'-' '-' '-' '-' '-'});
+xlabel('$|p_z|$ or $1-|p_z|$'); ylabel('PDF'); %set(gca,'Yticklabel',[])
+legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','ne')
 ylim([0 5])
 goodplot([5 5])
 
@@ -867,7 +873,7 @@ end
 %% depth & orientation = irradiation
 
 % radiation as a function of depth 
-lambda_list = linspace(.01,1,100); % [.05 .1 .2 .3 .4]; % .2; % light decay lengthscale [m]  %% can't compare with expt data if lambda < wave height due to lack of samples near surface
+lambda_list = linspace(.01,0.4,50); % [.05 .1 .2 .3 .4]; % .2; % light decay lengthscale [m]  %% can't compare with expt data if lambda < wave height due to lack of samples near surface
 I0 = 1;  % surface light intensity
 z_wave = 0;%-0.03; % wave layer depth
 
@@ -884,6 +890,9 @@ irrad_depthonly_extrap_mean = zeros(n_cases,1);
 irrad_extrap_mean = zeros(n_cases,1);
 w_irrad_depthonly_extrap_mean = zeros(n_cases,1);
 w_irrad_extrap_mean = zeros(n_cases,1);
+irrad_orientonly_rand_extrap_mean = zeros(n_cases,1);
+
+smangles_nonan = smangles;
 
 
 for j = 1:length(lambda_list)
@@ -899,8 +908,8 @@ for j = 1:length(lambda_list)
     
     for i = 1:length(n)   
         idx = i + (j-1)*length(n);
-        pz_rand = 0.5; % 3/8; % mean pz of random orientation distribution 
-        pxpy_rand = pi/4; % mean sqrt(1-pz^2) of random orientation distribution
+        pz_rand = 0.5; % 3/8; % mean pz of random orientation distribution (use for disks)
+        pxpy_rand = pi/4; % mean sqrt(1-pz^2) of random orientation distribution (use for rods)
         Lm_lambda(idx) = Lm_fit(i)/lambda;
 
         if nonsphere(i)  
@@ -923,7 +932,11 @@ for j = 1:length(lambda_list)
                 SA(idx) = 2*pi*thk^2/4 + pi*thk*run_params.Dp_m(n(i)); % particle surface area
                 Vp(idx) = pi*thk^2/4*run_params.Dp_m(n(i)); % particle volume
                 SA_Vp(idx) = 2*(run_params.Dp_m(n(i)) + thk)/(run_params.Dp_m(n(i))*thk);  % SA to V ratio
-                Anormal{idx} = sqrt(1 - (smangles{i}(:,2).^2))*Ap; % normal area
+                
+                % replace NaN's with mean value of pz of rods with small py
+                pxpy_interp = mean(sqrt(1 - (smangles{i}(smangles{i}(:,3)<.5,2).^2)),'omitnan'); 
+                smangles_nonan{i}(isnan(smangles{i}(:,2)),2) = pxpy_interp;
+                Anormal{idx} = sqrt(1 - (smangles_nonan{i}(:,2).^2))*Ap; % normal area 
             end
         else
             % sphere
@@ -942,17 +955,44 @@ for j = 1:length(lambda_list)
 %         irrad_theor_depthlim(idx) = I0*lambda/(lambda+Lm_fit(i))*(1-exp(zprof{i}(1)/lambda)); % not correct, idk what's wrong
     
         % observed irradiance
-        below_waves_idx = true(size(depths{i}));  % smtracks{i}(:,2) < -dz(i);
-        irrad_depthonly{idx} = rad_level(depths{i}(below_waves_idx)); % 
-        irrad{idx} = Anormal{idx}(below_waves_idx).*irrad_depthonly{idx};
+        ROI_idx = smtracks{i}(:,2) > -.35; % % above bottom of ROI % true(size(depths{i}));  % smtracks{i}(:,2) < -dz(i);
+        irrad_depthonly{idx} = rad_level(depths{i}(ROI_idx)); %
+        irrad{idx} = Anormal{idx}(ROI_idx).*irrad_depthonly{idx};
         
         I_tot_extrap = C0_count(i)*Lm_fit(i)*irrad_theor(idx)*exp(zprof{i}(1)*(lambda+Lm_fit(i))/(lambda*Lm_fit(i)));
         N_tot_extrap = C0_count(i)*Lm_fit(i)*exp(zprof{i}(1)/Lm_fit(i));
-       
-        irrad_depthonly_extrap_mean(idx) = (sum(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + I_tot_extrap) / ...
-            (length(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) / I0;  % depth-only irrad (norm by surface irrad)
+        
+
+        % depth-only irrad (norm by surface irrad)
+        irrad_depthonly_extrap_mean(idx) = (sum(irrad_depthonly{idx},'omitnan') + I_tot_extrap) / ...
+            (length(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) / I0;  
+
+        % oriented irrad (normalized by rand orient particle at surface) 
         irrad_extrap_mean(idx) = (sum(irrad{idx},'omitnan') + I_tot_extrap*Ap) / ...
-            (length(irrad{idx}) + N_tot_extrap) / (A_rand*I0);  % oriented irrad (normalized by ramd orient particle at surface) 
+            (length(irrad{idx}(~isnan(irrad{idx}))) + N_tot_extrap) / (A_rand*I0);  
+        
+        % oriented irrad (not normalized) 
+        irrad_extrap_mean_abs(idx) = (sum(irrad{idx},'omitnan') + I_tot_extrap*Ap) / ...
+            (length(irrad{idx}(~isnan(irrad{idx}))) + N_tot_extrap) / I0;  
+
+        % depth-only irrad assuming random-orient 
+        irrad_depthrand_extrap_mean(idx) = (sum(irrad_depthonly{idx},'omitnan') + I_tot_extrap)*A_rand / ... 
+            (length(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) / I0;  
+        
+        % depth-only irrad assuming perfect pref orient 
+        irrad_depthpref_extrap_mean(idx) = (sum(irrad_depthonly{idx},'omitnan') + I_tot_extrap)*Ap / ... 
+            (length(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) / I0; 
+
+        % orient-only irrad (oriented irrad normalized by depth-only random irrad)
+        irrad_orientonly_rand_extrap_mean(idx) = irrad_extrap_mean_abs(idx) ./ irrad_depthrand_extrap_mean(idx);
+
+        % orient-only irrad (oriented irrad normalized by depth-only perf pref irrad)
+        irrad_orientonly_pref_extrap_mean(idx) = irrad_extrap_mean_abs(idx) ./ irrad_depthpref_extrap_mean(idx);
+        
+%         ( (sum(irrad{idx},'omitnan') + I_tot_extrap*Ap) / ...
+%             (length(irrad{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) ) ./ ...
+%             ( (sum(irrad_depthonly{idx},'omitnan') + I_tot_extrap)*A_rand / ...
+%             (length(irrad_depthonly{idx}(~isnan(irrad_depthonly{idx}))) + N_tot_extrap) );
 
         % error estimates [TODO]
         w_irrad_depthonly_extrap_mean(idx) = nan;
@@ -987,7 +1027,7 @@ end
 % title('Extrapolated: orient + depth')
 % goodplot([6 4])
 
-%% line plots
+% line plots
 % irradiation vs Lm considering depth only, no orientation
 figure;
 compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_depthonly_extrap_mean,length(n),[]),2), ...
@@ -999,7 +1039,7 @@ legend(lstr,'location','northeastoutside')
 % plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
 plot(Lm_lambda, irrad_theor, '.','color',ebar_gray);
 title('Extrapolated: depth only')
-axis([0 6 0 1.2])
+axis([0 6 0 1.5])
 goodplot([6 4])
 
 % irradiation vs Lm accounting for orientation, normalized by random pz distribution
@@ -1013,10 +1053,36 @@ legend(lstr,'location','northeastoutside')
 % plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
 plot(Lm_lambda, irrad_theor_rand, '.','color',ebar_gray);
 title('Extrapolated: orient + depth')
-axis([0 6 0 1.2])
+axis([0 6 0 1.5])
 goodplot([6 4])
 
+% irradiation vs Lm accounting for orientation, normalized by depth-only rand orient irrad
+figure;
+compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_orientonly_rand_extrap_mean,length(n),[]),2), ...
+    mk_col,nones,mk_sz,ls); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+legend(lstr,'location','northeastoutside')
+% P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
+% Lm_vec = 0.4:0.01:2;
+% plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
+% plot(Lm_lambda, irrad_theor_rand, '.','color',ebar_gray);
+title('Extrapolated: orient only (rand)')
+axis([0 6 0.75 1.75])
+goodplot([6 4])
 
+% irradiation vs Lm accounting for orientation, normalized by depth-only perf pref orient irrad
+figure;
+compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_orientonly_pref_extrap_mean,length(n),[]),2), ...
+    mk_col,nones,mk_sz,ls); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+legend(lstr,'location','northeastoutside')
+% P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
+% Lm_vec = 0.4:0.01:2;
+% plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
+% plot(Lm_lambda, irrad_theor_rand, '.','color',ebar_gray);
+title('Extrapolated: orient only (pref)')
+axis([0 6 0 1.5])
+goodplot([6 4])
 
 
 
