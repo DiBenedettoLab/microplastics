@@ -75,6 +75,7 @@ nones = {'none' 'none' 'none' 'none' 'none' 'none' 'none' 'none'};
 nones = [nones nones];
 eb_col = {ebar_gray ebar_gray ebar_gray ebar_red ebar_red ebar_blue ebar_blue ebar_blue};
 eb_col = [eb_col eb_col];
+lw = mk_sz./min(mk_sz)*1;
 lstr = cellfun(@upper, run_params.ParticleType(n), 'UniformOutput', false)';  
 
 % channel geometry & physical quantities
@@ -334,7 +335,7 @@ end
 
 %% plot concentration
 figure;
-l = compare_plots(Cnorm, zprof, mk_col, mk, mk_sz, ls, ...
+l = compare_plots(Cnorm, zprof, mk_col, mk, mk_sz, ls,lw, ...
     w_C, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 % set(gca,'yscale','log'); 
 axis([0 4 prof_zlim])
@@ -389,7 +390,7 @@ for i = 1:length(n)
     w_C_C0{i} = w_C{i}/C0(i);
     z_Lm{i} = (zprof{i}+dz(i))/Lm_fit(i); % Lm_theor(i); %
 end
-figure; l = compare_plots(C_C0, z_Lm, mk_col, mk, mk_sz, ls, ...
+figure; l = compare_plots(C_C0, z_Lm, mk_col, mk, mk_sz, ls, lw, ...
     w_C_C0, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
 set(gca, 'Children', flipud(get(gca, 'Children')) )
 hold on; l2 = plot(exp(-8:.1:0),-8:.1:0,'k--','linewidth',2);
@@ -423,7 +424,7 @@ for i = 1:length(n)
 %     end
 end
 idx = 1:3;
-figure; compare_plots(C_C0_theor(idx), {z_theor z_theor z_theor}, mk_col(idx), {'none' 'none' 'none'} , mk_sz(idx), ls(idx));
+figure; compare_plots(C_C0_theor(idx), {z_theor z_theor z_theor}, mk_col(idx), {'none' 'none' 'none'} , mk_sz(idx), ls(idx),lw(idx));
 hold on; l = compare_plots(C_C0(idx), zprof(idx), mk_col(idx), mk(idx), mk_sz(idx), ls(idx), ...
     w_C_C0(idx), num2cell(nan(size(n(idx)))), eb_col(idx), num2cell(nan(size(n(idx)))));
 legend(l,lstr,'location','se')
@@ -675,6 +676,9 @@ goodplot([5 4])
 
 %% orientations
 
+smangles_nonan = smangles;
+
+
 % orientation pdfs separated by depth
 px_pdf = cell(size(n));
 py_pdf = cell(size(n));
@@ -698,13 +702,20 @@ for i = 1:length(n)
         py_rng{i} = zeros(Npdf,Nbins_wide);
         pz_rng{i} = zeros(Npdf,Nbins_wide);
         pzs_rng{i} = zeros(Npdfs,Nbins_wide);
+
+        % fill in NaN's for rods
+        if strncmp(run_params.ParticleType{n(i)},'r',1)
+            nan_idx = isnan(smangles{i}(:,2));
+            pz_nan = sin(smtracks{i}(:,10)).*nan_idx;
+            smangles_nonan{i}(nan_idx,2) = pz_nan(nan_idx);
+        end
     
-        for j = 1:Nbins_wide
+        for j = 1:Nbins_wide 
             idx = smtracks{i}(:,2) >= z_bins_wide_edg(j) & smtracks{i}(:,2) < z_bins_wide_edg(j+1);
             [px_pdf{i}(:,j), px_rng{i}(:,j)] = pdf_var(abs(smangles{i}(idx,1)),Npdf,0,[0 1]);
             [py_pdf{i}(:,j), py_rng{i}(:,j)] = pdf_var(abs(smangles{i}(idx,3)),Npdf,0,[0 1]);
-            [pz_pdf{i}(:,j), pz_rng{i}(:,j)] = pdf_var(abs(smangles{i}(idx,2)),Npdf,0,[0 1]);
-            [pzs_pdf{i}(:,j), pzs_rng{i}(:,j)] = pdf_var(smangles{i}(idx,2),Npdfs,0,[-1 1]);
+            [pz_pdf{i}(:,j), pz_rng{i}(:,j)] = pdf_var(abs(smangles_nonan{i}(idx,2)),Npdf,0,[0 1]);
+            [pzs_pdf{i}(:,j), pzs_rng{i}(:,j)] = pdf_var(smangles_nonan{i}(idx,2),Npdfs,0,[-1 1]);
         end
     end
 end
@@ -773,7 +784,7 @@ goodplot([10 4])
 figure;
 l = compare_plots(mat2cell([pz_rng{5}(:,[1,4]), pz_rng{7}(:,[1 4])],Npdf,ones(1,4)), ...
     mat2cell([pz_pdf{5}(:,[1 4]), pz_pdf{7}(:,[1 4])],Npdf,ones(1,4)), ...
-    pdf_col([1 4 1 4]),{'+' '+' 'o' 'o'},[10 10 6 6],{'-' '-' '-' '-'});
+    pdf_col([1 4 1 4]),{'+' '+' 'o' 'o'},[10 10 6 6],{'-' '-' '-' '-'},1.25*ones(1,5));
 xlabel('$|p_z|$'); ylabel('PDF'); set(gca,'Yticklabel',[])
 legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','nw')
 ylim([0 7])
@@ -783,7 +794,7 @@ goodplot([5 5])
 figure;
 l = compare_plots(mat2cell([pz_rng{4}(:,[1 end]), 1-pz_rng{7}(:,[1 end]), pz_rng{7}(:,1)],Npdf,ones(1,5)), ...
     mat2cell([pz_pdf{4}(:,[1 end]), pz_pdf{7}(:,[1 end]), ones(Npdf,1)],Npdf,ones(1,5)), ...
-    [pdf_col([1 end],:); pdf_col([1 end],:); {[0 0 0]}],{'+' '+' 'o' 'o' 'none'},[10 10 6 6 1],{'-' '-' '-' '-' '-'});
+    [pdf_col([1 end],:); pdf_col([1 end],:); {[0 0 0]}],{'+' '+' 'o' 'o' 'none'},[10 10 6 6 1],{'-' '-' '-' '-' '-'},1.25*ones(1,5));
 xlabel('$|p_z|$ or $1-|p_z|$'); ylabel('PDF'); %set(gca,'Yticklabel',[])
 legend(l,{'Rods, deep', 'Rods, shallow', 'Disks, deep', 'Disks, shallow'},'location','ne')
 ylim([0 5])
@@ -873,7 +884,7 @@ end
 %% depth & orientation = irradiation
 
 % radiation as a function of depth 
-lambda_list = linspace(.01,0.4,50); % [.05 .1 .2 .3 .4]; % .2; % light decay lengthscale [m]  %% can't compare with expt data if lambda < wave height due to lack of samples near surface
+lambda_list = linspace(.01,1.4,250); % [.05 .1 .2 .3 .4]; % .2; % light decay lengthscale [m]  %% can't compare with expt data if lambda < wave height due to lack of samples near surface
 I0 = 1;  % surface light intensity
 z_wave = 0;%-0.03; % wave layer depth
 
@@ -933,9 +944,12 @@ for j = 1:length(lambda_list)
                 Vp(idx) = pi*thk^2/4*run_params.Dp_m(n(i)); % particle volume
                 SA_Vp(idx) = 2*(run_params.Dp_m(n(i)) + thk)/(run_params.Dp_m(n(i))*thk);  % SA to V ratio
                 
-                % replace NaN's with mean value of pz of rods with small py
-                pxpy_interp = mean(sqrt(1 - (smangles{i}(smangles{i}(:,3)<.5,2).^2)),'omitnan'); 
-                smangles_nonan{i}(isnan(smangles{i}(:,2)),2) = pxpy_interp;
+                % replace NaN's with raw value of theta from images (which
+                % is approx equal to pz for py~0, the case which results in NaN's)
+%                 pxpy_interp = mean(sqrt(1 - (smangles{i}(smangles{i}(:,3)<.5,2).^2)),'omitnan'); 
+                nan_idx = isnan(smangles{i}(:,2));
+                pz_nan = sin(smtracks{i}(:,10)).*nan_idx;
+                smangles_nonan{i}(nan_idx,2) = pz_nan(nan_idx);
                 Anormal{idx} = sqrt(1 - (smangles_nonan{i}(:,2).^2))*Ap; % normal area 
             end
         else
@@ -1031,8 +1045,8 @@ end
 % irradiation vs Lm considering depth only, no orientation
 figure;
 compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_depthonly_extrap_mean,length(n),[]),2), ...
-    mk_col,nones,mk_sz,ls); hold on; 
-xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+    mk_col,nones,mk_sz,ls,lw); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$\langle I\rangle/I_0$')
 legend(lstr,'location','northeastoutside')
 % P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
 % Lm_vec = 0.4:0.01:2;
@@ -1045,8 +1059,8 @@ goodplot([6 4])
 % irradiation vs Lm accounting for orientation, normalized by random pz distribution
 figure;
 compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_extrap_mean,length(n),[]),2), ...
-    mk_col,nones,mk_sz,ls); hold on; 
-xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
+    mk_col,nones,mk_sz,ls,lw); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$\langle I\rangle/I_0$')
 legend(lstr,'location','northeastoutside')
 % P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
 % Lm_vec = 0.4:0.01:2;
@@ -1057,25 +1071,30 @@ axis([0 6 0 1.5])
 goodplot([6 4])
 
 % irradiation vs Lm accounting for orientation, normalized by depth-only rand orient irrad
+Lm_lambda_cell = num2cell( reshape(Lm_lambda,length(n),[]), 2 );
+irrad_cell = num2cell(reshape(irrad_orientonly_rand_extrap_mean,length(n),[]),2);
 figure;
-compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_orientonly_rand_extrap_mean,length(n),[]),2), ...
-    mk_col,nones,mk_sz,ls); hold on; 
-xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
-legend(lstr,'location','northeastoutside')
+compare_plots(Lm_lambda_cell(nonsphere), irrad_cell(nonsphere), ...
+    mk_col(nonsphere),nones(nonsphere),mk_sz(nonsphere),ls(nonsphere),lw(nonsphere)); hold on; 
+xlabel('$L_m/\lambda$'); ylabel('$\langle I\rangle/I_{rand}$')
+line([0 6],[1 1],'color','k');
+legend([lstr(nonsphere) {'Random'}],'location','northeastoutside')
 % P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
 % Lm_vec = 0.4:0.01:2;
 % plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
 % plot(Lm_lambda, irrad_theor_rand, '.','color',ebar_gray);
-title('Extrapolated: orient only (rand)')
-axis([0 6 0.75 1.75])
+% title('Extrapolated: orient only (rand)')
+axis([0 6 0.9 1.4])
 goodplot([6 4])
 
 % irradiation vs Lm accounting for orientation, normalized by depth-only perf pref orient irrad
+irrad_cell = num2cell(reshape(irrad_orientonly_pref_extrap_mean,length(n),[]),2);
 figure;
-compare_plots(num2cell(reshape(Lm_lambda,length(n),[]),2), num2cell(reshape(irrad_orientonly_pref_extrap_mean,length(n),[]),2), ...
-    mk_col,nones,mk_sz,ls); hold on; 
-xlabel('$L_m/\lambda$ [m]'); ylabel('$I/I_0$')
-legend(lstr,'location','northeastoutside')
+compare_plots(Lm_lambda_cell(nonsphere), irrad_cell(nonsphere), ...
+    mk_col(nonsphere),nones(nonsphere),mk_sz(nonsphere),ls(nonsphere),lw(nonsphere)); hold on; 
+xlabel('$L_m/\lambda$ [m]'); ylabel('$\langle I\rangle/I_0$')
+line([0 6],[1 1],'color','k');
+legend([lstr(nonsphere) {'Random'}],'location','northeastoutside')
 % P = polyfit(log(Lm_fit/lambda),log(irrad_depthonly_extrap_mean),1);
 % Lm_vec = 0.4:0.01:2;
 % plot(Lm_vec, exp(P(2))*Lm_vec.^P(1));
