@@ -35,6 +35,9 @@ for i = 1:(length(n))
     if nonsphere(i)
         smangles{i} = sm_tmp.smangles;
         smangles_cont{i} = sm_tmp.smangles_cont;
+        imag_idx = logical(imag(smangles_cont{i}(:,1)));
+        smangles{i}(imag_idx) = nan;
+        smangles_cont{i}(imag_idx) = nan;
     end
 end
 
@@ -423,19 +426,19 @@ for i = 1:length(n)
 %         C_C0_theor{i} = exp(z_theor/Lm_fit(i)); 
 %     end
 end
-idx = 1:3;
-figure; compare_plots(C_C0_theor(idx), {z_theor z_theor z_theor}, mk_col(idx), {'none' 'none' 'none'} , mk_sz(idx), ls(idx),lw(idx));
-hold on; l = compare_plots(C_C0(idx), zprof(idx), mk_col(idx), mk(idx), mk_sz(idx), ls(idx), ...
-    w_C_C0(idx), num2cell(nan(size(n(idx)))), eb_col(idx), num2cell(nan(size(n(idx)))));
-legend(l,lstr,'location','se')
-hold on; l2 = plot(exp((-H:.01:0)/Lm_fit(idx(1))),-H:.01:0,'--','linewidth',2,'color','g');
-plot(exp((-H:.01:0)/Lm_fit(idx(2))),-H:.01:0,'--','linewidth',2,'color','g');
-if length(idx) > 2
-    plot(exp((-H:.01:0)/Lm_fit(idx(3))),-H:.01:0,'--','linewidth',2,'color','g');
-end
-% ylim([-H 0]); xlim([0 1.2])
-xlabel('$C/C_0$'); ylabel('$z$ [m]'); % legend([l;l2],[lstr,{'Fit'}],'location','se')
-goodplot([6 5])
+% idx = 1:3;
+% figure; compare_plots(C_C0_theor(idx), {z_theor z_theor z_theor}, mk_col(idx), {'none' 'none' 'none'} , mk_sz(idx), ls(idx),lw(idx));
+% hold on; l = compare_plots(C_C0(idx), zprof(idx), mk_col(idx), mk(idx), mk_sz(idx), ls(idx), ...
+%     w_C_C0(idx), num2cell(nan(size(n(idx)))), eb_col(idx), num2cell(nan(size(n(idx)))));
+% legend(l,lstr,'location','se')
+% hold on; l2 = plot(exp((-H:.01:0)/Lm_fit(idx(1))),-H:.01:0,'--','linewidth',2,'color','g');
+% plot(exp((-H:.01:0)/Lm_fit(idx(2))),-H:.01:0,'--','linewidth',2,'color','g');
+% if length(idx) > 2
+%     plot(exp((-H:.01:0)/Lm_fit(idx(3))),-H:.01:0,'--','linewidth',2,'color','g');
+% end
+% % ylim([-H 0]); xlim([0 1.2])
+% xlabel('$C/C_0$'); ylabel('$z$ [m]'); % legend([l;l2],[lstr,{'Fit'}],'location','se')
+% goodplot([6 5])
 
 
 %% vertical flux
@@ -477,12 +480,12 @@ A0_vec = 1.5*[1 2 3]*1e-2*0.4*5e-2;
 % figure; l = compare_plots(fluxz,zprof_k,mk_col,mk,mk_sz,ls);
 % xlabel('$\Phi$ [m$^{-2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([5 4])
 
-% plot diffusivity
-figure; l = compare_plots(eps_p_flux,zprof_k,mk_col,mk,mk_sz,ls);
-hold on; line([A0_vec(1) A0_vec(1)],binedg*kdom,'color','k','linestyle','--'); 
-line([A0_vec(2) A0_vec(2)],binedg*kdom,'color','k','linestyle','--'); 
-line([A0_vec(3) A0_vec(3)],binedg*kdom,'color','k','linestyle','--'); 
-xlim([-.01 .02]); xlabel('$A(z)$ [m$^{2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([4 4])
+% % plot diffusivity
+% figure; l = compare_plots(eps_p_flux,zprof_k,mk_col,mk,mk_sz,ls);
+% hold on; line([A0_vec(1) A0_vec(1)],binedg*kdom,'color','k','linestyle','--'); 
+% line([A0_vec(2) A0_vec(2)],binedg*kdom,'color','k','linestyle','--'); 
+% line([A0_vec(3) A0_vec(3)],binedg*kdom,'color','k','linestyle','--'); 
+% xlim([-.01 .02]); xlabel('$A(z)$ [m$^{2}$s$^{-1}$]'); ylabel('$z k_{dom}$'); legend(l,lstr,'location','se'); goodplot([4 4])
 
 
 
@@ -522,16 +525,16 @@ for m = 1:length(n)
     [delta_zmax_pdf{m}, delta_zmax_rng{m}] = pdf_var(delta_zmax,20,0); %1,[min(delta_zmax) -1e-3]);
 end
 
-% plot
-figure;
-compare_plots(delta_t_rng, delta_t_pdf, mk_col, mk, mk_sz, ls);
-xlabel('$\Delta t$ [s]'); ylabel('PDF'); set(gca,'yscale','log')
-goodplot([5 4])
-
-figure;
-compare_plots(delta_zmax_rng, delta_zmax_pdf, mk_col, mk, mk_sz, ls);
-xlabel('$\Delta z_{max}$ [m]'); ylabel('PDF'); set(gca,'yscale','log')
-goodplot([5 4])
+% % plot
+% figure;
+% compare_plots(delta_t_rng, delta_t_pdf, mk_col, mk, mk_sz, ls);
+% xlabel('$\Delta t$ [s]'); ylabel('PDF'); set(gca,'yscale','log')
+% goodplot([5 4])
+% 
+% figure;
+% compare_plots(delta_zmax_rng, delta_zmax_pdf, mk_col, mk, mk_sz, ls);
+% xlabel('$\Delta z_{max}$ [m]'); ylabel('PDF'); set(gca,'yscale','log')
+% goodplot([5 4])
 
 
 
@@ -621,39 +624,39 @@ for i = 1:length(n)
 end
 
 %% plot velocity profiles
-figure;
-% subplot(121); 
-l = compare_plots(umean, zprof, mk_col, mk, mk_sz, ls, ...
-    w_umean, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle u_p\rangle$ [m/s]'); ylabel('$z$ [m]')
-legend(l,lstr,'location','sw')
-
-subplot(122); 
-compare_plots(wmean, zprof_k, mk_col, mk, mk_sz, ls, ...
-    w_wmean, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle w_p\rangle$ [m/s]'); 
-goodplot([5 4])
-
-figure;
-subplot(131); 
-l = compare_plots(uu, zprof_k, mk_col, mk, mk_sz, ls, ...
-    w_uu, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle u_p''u_p''\rangle$ [m$^2$/s$^2$]'); ylabel('$zk_{dom}$')
-legend(l,lstr,'location','se')
-xlim([0 10]*1e-3)
-
-subplot(132); 
-compare_plots(ww, zprof_k, mk_col, mk, mk_sz, ls, ...
-    w_ww, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle w_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
-xlim([0 10]*1e-3)
-
-subplot(133); 
-compare_plots(uw, zprof_k, mk_col, mk, mk_sz, ls, ...
-    w_uw, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
-xlabel('$\langle u_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
-xlim([-5 5]*1e-3)
-goodplot([6 4])
+% figure;
+% % subplot(121); 
+% l = compare_plots(umean, zprof, mk_col, mk, mk_sz, ls, ...
+%     w_umean, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% xlabel('$\langle u_p\rangle$ [m/s]'); ylabel('$z$ [m]')
+% legend(l,lstr,'location','sw')
+% 
+% subplot(122); 
+% compare_plots(wmean, zprof_k, mk_col, mk, mk_sz, ls, ...
+%     w_wmean, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% xlabel('$\langle w_p\rangle$ [m/s]'); 
+% goodplot([5 4])
+% 
+% figure;
+% subplot(131); 
+% l = compare_plots(uu, zprof_k, mk_col, mk, mk_sz, ls, ...
+%     w_uu, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% xlabel('$\langle u_p''u_p''\rangle$ [m$^2$/s$^2$]'); ylabel('$zk_{dom}$')
+% legend(l,lstr,'location','se')
+% xlim([0 10]*1e-3)
+% 
+% subplot(132); 
+% compare_plots(ww, zprof_k, mk_col, mk, mk_sz, ls, ...
+%     w_ww, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% xlabel('$\langle w_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
+% xlim([0 10]*1e-3)
+% 
+% subplot(133); 
+% compare_plots(uw, zprof_k, mk_col, mk, mk_sz, ls, ...
+%     w_uw, num2cell(nan(size(n))), eb_col, num2cell(nan(size(n))));
+% xlabel('$\langle u_p''w_p''\rangle$ [m$^2$/s$^2$]'); 
+% xlim([-5 5]*1e-3)
+% goodplot([6 4])
 
 % print total mean velocity
 disp(umean_total)
@@ -725,30 +728,30 @@ pz_rng_rand = linspace(0,1,Npdf);
 pz_pdf_rand = [];
 
 % plot orientation pdfs
-% pdf_col = mat2cell(parula(Nbins_wide+1),ones(1,Nbins_wide),3);
-% pdf_col = pdf_col{1:end-1};
-% pdf_mk = {'.' '.' '.' '.' '.' '.'};
-% pdf_mk_sz = 10*ones(Nbins_wide,1);
-% pdf_ls = {'-' '-' '-' '-' '-' '-'};
+pdf_col = mat2cell(parula(Nbins_wide+1),ones(1,Nbins_wide+1),3);
+pdf_col = pdf_col(1:end-1);
+pdf_mk = {'.' '.' '.' '.' '.' '.'};
+pdf_mk_sz = 10*ones(Nbins_wide,1);
+pdf_ls = {'-' '-' '-' '-' '-' '-'};
 
 for i = 1:length(n)
     if nonsphere(i)
         figure;
         subplot(141);
         l = compare_plots(mat2cell(px_rng{i},Npdf,ones(1,Nbins_wide)), ...
-            mat2cell(px_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            mat2cell(px_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls,ones(size(pdf_mk_sz)));
         xlabel('$|p_x|$'); ylabel('PDF')
         subplot(142);
         compare_plots(mat2cell(py_rng{i},Npdf,ones(1,Nbins_wide)), ...
-            mat2cell(py_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            mat2cell(py_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls,ones(size(pdf_mk_sz)));
         xlabel('$|p_y|$')
         subplot(143);
         compare_plots(mat2cell(pz_rng{i},Npdf,ones(1,Nbins_wide)), ...
-            mat2cell(pz_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            mat2cell(pz_pdf{i},Npdf,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls,ones(size(pdf_mk_sz)));
         xlabel('$|p_z|$')
         subplot(144);
         compare_plots(mat2cell(pzs_rng{i},Npdfs,ones(1,Nbins_wide)), ...
-            mat2cell(pzs_pdf{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls);
+            mat2cell(pzs_pdf{i},Npdfs,ones(1,Nbins_wide)), pdf_col,pdf_mk,pdf_mk_sz,pdf_ls,ones(size(pdf_mk_sz)));
         xlabel('$p_z$')
         sgtitle(run_params.ParticleType{n(i)})
         goodplot([6 4])
@@ -879,6 +882,24 @@ if 0  % don't run this section
         end
     end
 end
+
+
+%% angular velocity (mean squared tumbling rate)
+mstr = cell(size(n));
+for i = 1:length(n)
+    if nonsphere(i)
+        sq_tumb_rate = sum(smangles{i}(:,4:6).^2,2);
+        [mstr{i}, zprof2{i}] = condition_vars(sq_tumb_rate,smtracks{i}(:,2),20,0,prof_zlim);
+    end
+end
+
+figure; 
+compare_plots(mstr(nonsphere), zprof2(nonsphere), ...
+    mk_col(nonsphere),nones(nonsphere),mk_sz(nonsphere),ls(nonsphere),lw(nonsphere));
+ylabel('z [m]')
+xlabel('$\langle\dot{p}\cdot\dot{p}\rangle$')
+legend([lstr(nonsphere)],'location','northeastoutside')
+goodplot([5 4])
 
 
 %% depth & orientation = irradiation
